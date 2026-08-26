@@ -37,8 +37,8 @@ export function IndiaMap() {
       data as unknown as GeoJSON.GeoJSON,
     )
     const pg = geoPath(projection)
-    const p = data.features.map((f: Feature<Geometry, { name: string }>) => ({
-      name: f.properties.name,
+    const p = data.features.map((f: Feature<Geometry>) => ({
+      name: (f.properties?.name as string) ?? '',
       d: pg(f) ?? '',
       centroid: pg.centroid(f),
     }))

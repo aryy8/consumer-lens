@@ -31,7 +31,8 @@ import {
 } from '@/lib/data'
 import { Panel, PanelHeader, StatCard } from '@/components/section'
 import { ScoreBadge, StatusTag } from '@/components/status'
-import { Button } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 function RecentInspections({ items }: { items: typeof INSPECTIONS }) {
   return (
@@ -102,11 +103,9 @@ export function DashboardView() {
               Scan a new product label to verify its declarations against LMPC Rules 2011.
             </p>
           </div>
-          <Button asChild className="h-10 shrink-0">
-            <Link href="/new-inspection">
-              <ScanLine className="size-4" /> New inspection
-            </Link>
-          </Button>
+          <Link href="/inspections/new" className={cn(buttonVariants(), 'h-10 shrink-0')}>
+            <ScanLine className="size-4" /> New inspection
+          </Link>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
