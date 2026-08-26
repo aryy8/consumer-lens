@@ -130,3 +130,28 @@
     @apply text-foreground tracking-tight;
   }
 }
+
+@keyframes scanLine {
+  0% { top: 4%; }
+  100% { top: 96%; }
+}
+.scan-line {
+  animation: scanLine 1.3s ease-in-out infinite alternate;
+}
+
+@keyframes scanProgress {
+  0% { width: 6%; }
+  50% { width: 72%; }
+  100% { width: 96%; }
+}
+.scan-progress {
+  animation: scanProgress 2.4s ease-out forwards;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease-out both;
+}

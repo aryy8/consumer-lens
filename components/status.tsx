@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import type { ComplianceStatus, ViolationSeverity } from '@/lib/types'
+import type { ComplianceStatus, Role, ViolationSeverity } from '@/lib/types'
 
 const STATUS_META: Record<ComplianceStatus, { label: string; dot: string; text: string }> = {
   compliant: { label: 'Compliant', dot: 'bg-success', text: 'text-success' },
@@ -63,6 +63,27 @@ export function RuleTag({ rule, className }: { rule: string; className?: string 
       )}
     >
       {rule}
+    </span>
+  )
+}
+
+const ROLE_META: Record<Role, { label: string; className: string }> = {
+  inspector: { label: 'Inspector', className: 'bg-secondary text-slate' },
+  supervisor: { label: 'Supervisor', className: 'bg-warning-muted text-warning-foreground' },
+  admin: { label: 'Admin', className: 'bg-navy/10 text-navy' },
+}
+
+export function RoleTag({ role, className }: { role: Role; className?: string }) {
+  const meta = ROLE_META[role]
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide',
+        meta.className,
+        className,
+      )}
+    >
+      {meta.label}
     </span>
   )
 }
