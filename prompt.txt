@@ -1,0 +1,74 @@
+
+
+I am building **Consumer Lens** — a government enforcement platform for Legal Metrology officers in India to scan packaged product labels, check compliance with LMPC Rules 2011, and generate official inspection reports. This is not a consumer app — it's a serious institutional tool used by government inspectors in the field and desk officers reviewing data.
+
+---
+
+**Design Direction**
+
+The UI should feel like a premium government SaaS product — think Linear or Notion meets an Indian regulatory authority. Clean, minimal, high information density without feeling cluttered. No rounded bubbly cards everywhere. No gradient hero sections. No decorative blobs or wavy backgrounds. No stock illustration sets. Typography should do most of the heavy lifting.
+
+Use Inter or DM Sans as the primary font. Generous whitespace. Borders and dividers over shadows for structure. Data should feel scannable at a glance.
+
+Color system: white backgrounds, dark navy for primary text and headings, a warm amber-orange as the sole accent color (used only on primary CTAs, active states, and critical data highlights — not sprayed across the UI), and a cool slate blue for secondary elements, nav, and institutional labels. Status colors: a muted green for compliant, a muted red for non-compliant, amber for pending — all desaturated enough to feel professional, not traffic-light garish. No teal, no purple, no gradients.
+
+The sidebar should be narrow and restrained — dark navy background, white text, orange left-border on the active item only. No icon-only collapsed state needed.
+
+---
+
+**Pages to build**
+
+**1. Login**
+Split screen. Left: dark navy panel with the Consumer Lens wordmark (text + a simple lens/magnifier mark), a one-line institutional tagline, and "Ministry of Consumer Affairs · Govt. of India" at the bottom. Right: white panel with a minimal login form — Employee ID, Password, Sign In button in amber-orange. Below the form, three small clickable role tiles (Inspector / Supervisor / Admin) with demo credential auto-fill. No illustrations, no decorative elements on this page.
+
+**2. Dashboard — Inspector role**
+Top: four compact stat tiles in a row — Inspections Today, This Month, Violations Found, Compliance Rate. Numbers large, labels small, one subtle trend line or delta below each. No icon bloat.
+
+Below: two-column layout. Left (wider): "Recent Inspections" as a clean data table — product name, category, score as a small number badge (colored by range), status as a text tag not a pill, date, action link. Right: "Violation Breakdown" as a minimal donut chart with a legend below showing Critical / Major / Minor counts. Below the chart: a short ranked list of the most common violation types this month.
+
+**3. Dashboard — Supervisor role**
+Same stat tiles but system-wide numbers. Add an "Inspector Activity" section below — a compact table showing each inspector's name, inspections this month, average score, and violations found. No extra decoration.
+
+**4. Dashboard — Admin role**
+Stat tiles include Active Officers and States Covered in addition to inspection metrics. Below: a line chart for inspections over time and a bar chart for top violated rule provisions. Below that: a simplified India state map (SVG) with states shaded in varying navy-to-orange intensity based on inspection volume.
+
+**5. New Inspection**
+Step-based flow shown as a minimal horizontal step indicator at the top (Step 1: Upload · Step 2: Results · Step 3: Report).
+
+Step 1: A clean upload zone (dashed border, no heavy styling) for product image, with a secondary option to paste an Amazon or Flipkart URL below it. Below the upload zone: four form fields in a 2x2 grid — Product Name, Category dropdown, Batch Number, Inspection State dropdown. Primary CTA at the bottom: "Run Compliance Check" in amber-orange, full width.
+
+Step 2 (after scan): Left side shows the uploaded image with bounding boxes drawn over detected text — green for found/compliant fields, red for missing/violating. Right side shows: compliance score as a large number with a thin circular ring colored by range, overall verdict in text (COMPLIANT / NON-COMPLIANT) in the appropriate status color. Below that: a stacked list of 9 declaration fields — each row shows field name, extracted value in gray, a status indicator, rule reference as a small code tag, and an expand toggle that reveals the AI-generated plain-language explanation of any violation.
+
+Step 3: Report preview in a clean document layout with officer details, product info, inspection date, field results table, score, and verdict. Two buttons: Download PDF and Save to Repository.
+
+**6. My Inspections (Inspector) / Team Inspections (Supervisor)**
+Search bar and three filter dropdowns (Status, Category, Date Range) at the top. Results as a table — product thumbnail, name, category, score badge, status, date, state, and action icons (view, download). Toggle between table and grid at the top right. Pagination at the bottom. Clicking a row opens a detail drawer from the right.
+
+**7. Product Repository**
+Search and filter bar. Card grid (3 columns) — each card has product name, manufacturer, category tag, last inspection date, and score badge. Minimal card design — no heavy shadows, just a thin border. Clicking a card opens a side drawer with the product's inspection history as a timeline.
+
+**8. Reports**
+Table of all generated reports — Report ID, product, inspector, date, score, status, download. Export All button (CSV) at top right. Clicking a row opens a modal with the full report preview.
+
+**9. User Management (Admin only)**
+Clean table of all officers — name, employee ID, role tag, district, state, status toggle (active/inactive), edit icon. Add Officer button at top right opens a modal form.
+
+**10. Analytics (Admin only)**
+A dashboard-style page with: monthly inspections line chart, top violated provisions bar chart, compliance rate trend line, and the India state map. All charts minimal — no 3D, no heavy grid lines, muted axis labels.
+
+---
+
+**Role-based access rules**
+
+Three roles with different sidebar items and data scope:
+- Inspector: sees only their own data. Sidebar: Dashboard, New Inspection, My Inspections, Product Repository, Reports.
+- Supervisor: sees all inspectors in their jurisdiction. Sidebar: Dashboard, New Inspection, Team Inspections, Product Repository, Reports.
+- Admin: system-wide access. Sidebar: Dashboard, New Inspection, All Inspections, Product Repository, Reports, User Management, Analytics.
+
+Demo login credentials: INS001 / demo → Inspector. SUP001 / demo → Supervisor. ADM001 / demo → Admin. Store role in localStorage, redirect to /login if unauthenticated.
+
+---
+
+**What to avoid**
+
+No card shadows everywhere — use borders. No colored sidebar backgrounds other than dark navy. No emoji in the UI. No stock illustrations on functional pages. No rounded pill buttons — use slightly rounded rectangles. No blue primary buttons — orange only for primary CTAs. No animation that serves no purpose. No placeholder charts that look like they're from a template. Every piece of UI should justify its existence.
