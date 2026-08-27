@@ -7,6 +7,7 @@ import { Panel, PanelHeader } from '@/components/section'
 import { ScoreBadge, StatusTag } from '@/components/status'
 import { LabelInspector } from '@/components/inspection/label-inspector'
 import { FieldList } from '@/components/inspection/field-list'
+import { generateInspectionPDF } from '@/lib/pdf-report'
 import type { Inspection } from '@/lib/types'
 
 export function InspectionDetail({ inspection }: { inspection: Inspection }) {
@@ -56,7 +57,38 @@ export function InspectionDetail({ inspection }: { inspection: Inspection }) {
               <dd className="font-medium tabular-nums text-foreground">{inspection.date}</dd>
             </div>
           </dl>
-          <Button variant="outline" className="mt-4 w-full gap-1.5">
+          <Button
+            variant="outline"
+            className="mt-4 w-full gap-1.5"
+            onClick={() => {
+              const savedFormat = {
+                id: inspection.id,
+                productName: inspection.productName,
+                manufacturer: inspection.manufacturer,
+                category: inspection.category,
+                score: inspection.score,
+                status: inspection.status,
+                date: inspection.date,
+                state: inspection.state,
+                batchNumber: inspection.batchNumber,
+                inspectorName: inspection.inspectorName,
+                sourceType: (inspection as any).sourceType || 'image',
+                image: inspection.image || null,
+                productLink: (inspection as any).productLink || null,
+                notes: (inspection as any).notes || '',
+                fields: inspection.fields.map(f => ({
+                  key: f.key,
+                  label: f.label,
+                  rule: f.rule,
+                  status: f.status,
+                  severity: f.severity,
+                  extracted: f.extracted,
+                  explanation: f.explanation
+                }))
+              }
+              generateInspectionPDF(savedFormat)
+            }}
+          >
             <Download className="size-4" /> Export PDF report
           </Button>
         </Panel>

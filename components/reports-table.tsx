@@ -1,27 +1,40 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Download, FileText } from 'lucide-react'
+import { Download, FileText, FileDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Panel } from '@/components/section'
 import { ScoreBadge, StatusTag } from '@/components/status'
 import { SearchInput, FilterSelect } from '@/components/toolbar'
+import { getSavedReports, getInspectionById } from '@/lib/storage'
+import { generateInspectionPDF } from '@/lib/pdf-report'
+import { INSPECTIONS } from '@/lib/data'
 import type { ReportRecord } from '@/lib/types'
 
 export function ReportsTable({ reports }: { reports: ReportRecord[] }) {
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('all')
+  const [savedReports, setSavedReports] = useState<ReportRecord[]>([])
+
+  useEffect(() => {
+    const saved = getSavedReports()
+    setSavedReports(saved)
+  }, [])
+
+  const allReports = useMemo(() => {
+    return [...savedReports, ...reports]
+  }, [savedReports, reports])
 
   const filtered = useMemo(() => {
-    return reports.filter((r) => {
+    return allReports.filter((r) => {
       const q = query.trim().toLowerCase()
       const matchesQuery =
         !q || r.product.toLowerCase().includes(q) || r.id.toLowerCase().includes(q) || r.inspector.toLowerCase().includes(q)
       const matchesStatus = status === 'all' || r.status === status
       return matchesQuery && matchesStatus
     })
-  }, [reports, query, status])
+  }, [allReports, query, status])
 
   return (
     <div className="space-y-4">
@@ -70,12 +83,58 @@ export function ReportsTable({ reports }: { reports: ReportRecord[] }) {
                   <td className="px-5 py-3"><ScoreBadge score={r.score} /></td>
                   <td className="whitespace-nowrap px-5 py-3"><StatusTag status={r.status} /></td>
                   <td className="px-5 py-3 text-right">
-                    <Link
-                      href={`/inspections/${r.inspectionId}`}
-                      className="text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100"
-                    >
-                      Open
-                    </Link>
+                    <div className="flex items-center justify-end gap-3">
+                      <button
+                        onClick={() => {
+                          let inspection = getInspectionById(r.inspectionId)
+                          if (!inspection) {
+                            const staticInsp = INSPECTIONS.find(i => i.id === r.inspectionId)
+                            if (staticInsp) {
+                              inspection = {
+                                id: staticInsp.id,
+                                productName: staticInsp.productName,
+                                manufacturer: staticInsp.manufacturer,
+                                category: staticInsp.category,
+                                score: staticInsp.score,
+                                status: staticInsp.status,
+                                date: staticInsp.date,
+                                state: staticInsp.state,
+                                batchNumber: staticInsp.batchNumber,
+                                inspectorName: staticInsp.inspectorName,
+                                sourceType: 'image',
+                                image: staticInsp.image,
+                                productLink: null,
+                                notes: '',
+                                fields: staticInsp.fields.map(f => ({
+                                  key: f.key,
+                                  label: f.label,
+                                  rule: f.rule,
+                                  status: f.status,
+                                  severity: f.severity,
+                                  extracted: f.extracted,
+                                  explanation: f.explanation
+                                }))
+                              }
+                            }
+                          }
+                          if (inspection) {
+                            generateInspectionPDF(inspection)
+                          } else {
+                            alert('Inspection details not found.')
+                          }
+                        }}
+                        className="text-xs font-medium text-muted-foreground hover:text-foreground opacity-0 transition-opacity group-hover:opacity-100 flex items-center gap-1 cursor-pointer"
+                        title="Download PDF Report"
+                      >
+                        <FileDown className="size-3.5" /> PDF
+                      </button>
+                      <Link
+                        href={`/inspections/${r.inspectionId}`}
+                        className="text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100"
+                      >
+                        Open
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}

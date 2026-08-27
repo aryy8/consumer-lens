@@ -1,21 +1,52 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import { Panel } from '@/components/section'
 import { ScoreBadge, StatusTag } from '@/components/status'
 import { SearchInput, FilterSelect } from '@/components/toolbar'
-import { CATEGORIES } from '@/lib/data'
+import { CATEGORIES, DECLARATION_TEMPLATE } from '@/lib/data'
+import { getSavedInspections } from '@/lib/storage'
 import type { Inspection } from '@/lib/types'
 
 export function InspectionsTable({ inspections }: { inspections: Inspection[] }) {
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('all')
   const [category, setCategory] = useState('all')
+  const [savedInspections, setSavedInspections] = useState<Inspection[]>([])
+
+  // Hydrate saved inspections from localStorage (client-side only)
+  useEffect(() => {
+    const saved = getSavedInspections()
+    const asInspections: Inspection[] = saved.map((s) => ({
+      id: s.id,
+      productName: s.productName,
+      manufacturer: s.manufacturer,
+      category: s.category,
+      score: s.score,
+      status: s.status,
+      date: s.date,
+      state: s.state,
+      batchNumber: s.batchNumber,
+      inspectorId: 'SELF',
+      inspectorName: s.inspectorName,
+      image: s.image || '/placeholder.svg',
+      fields: s.fields.map((f, idx) => ({
+        ...f,
+        box: DECLARATION_TEMPLATE[idx]?.box ?? { x: 0, y: 0, w: 0, h: 0 },
+      })),
+    }))
+    setSavedInspections(asInspections)
+  }, [])
+
+  const allInspections = useMemo(
+    () => [...savedInspections, ...inspections],
+    [savedInspections, inspections]
+  )
 
   const filtered = useMemo(() => {
-    return inspections.filter((i) => {
+    return allInspections.filter((i) => {
       const q = query.trim().toLowerCase()
       const matchesQuery =
         !q ||
@@ -26,7 +57,7 @@ export function InspectionsTable({ inspections }: { inspections: Inspection[] })
       const matchesCategory = category === 'all' || i.category === category
       return matchesQuery && matchesStatus && matchesCategory
     })
-  }, [inspections, query, status, category])
+  }, [allInspections, query, status, category])
 
   return (
     <div className="space-y-4">
