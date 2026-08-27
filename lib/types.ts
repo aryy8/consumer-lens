@@ -67,3 +67,23 @@ export interface ReportRecord {
   score: number
   status: ComplianceStatus
 }
+
+export interface AnalysisField {
+  key: string
+  label: string
+  rule: string
+  status: FieldStatus
+  severity: ViolationSeverity | null
+  extracted: string | null
+  explanation: string | null
+}
+
+export interface AnalysisResult {
+  productName: string
+  manufacturer: string
+  category: string
+  score: number
+  status: ComplianceStatus
+  sourceType: 'image' | 'url'
+  fields: AnalysisField[]
+}
