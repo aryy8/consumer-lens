@@ -22,7 +22,7 @@ export function navForRole(role: Role): NavItem[] {
 
   const items: NavItem[] = [
     { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { label: 'New Inspection', href: '/new-inspection', icon: ScanLine },
+    { label: 'New Inspection', href: '/inspections/new', icon: ScanLine },
     { label: inspectionsLabel, href: '/inspections', icon: ClipboardList },
     { label: 'Product Repository', href: '/repository', icon: Package },
     { label: 'Reports', href: '/reports', icon: FileText },

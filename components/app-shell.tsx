@@ -21,6 +21,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
+
+  useEffect(() => {
+    const val = localStorage.getItem('sidebar-collapsed')
+    if (val === 'true') setCollapsed(true)
+  }, [])
+
+  const toggleCollapsed = () => {
+    const newVal = !collapsed
+    setCollapsed(newVal)
+    localStorage.setItem('sidebar-collapsed', String(newVal))
+  }
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login')
@@ -43,7 +55,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const items = navForRole(user.role)
-  const current = items.find((i) => pathname === i.href || pathname.startsWith(i.href + '/'))
+  const current = items.find((i) => {
+    if (i.href === '/inspections') {
+      return pathname === '/inspections' || (pathname.startsWith('/inspections/') && pathname !== '/inspections/new')
+    }
+    return pathname === i.href || pathname.startsWith(i.href + '/')
+  })
   const initials = user.name
     .split(' ')
     .map((n) => n[0])
@@ -52,7 +69,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-muted/30">
-      <AppSidebar />
+      <AppSidebar collapsed={collapsed} toggleCollapsed={toggleCollapsed} />
 
       {/* Mobile drawer */}
       {mobileOpen && (
@@ -73,7 +90,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <nav className="flex-1 px-3 py-4">
               <ul className="flex flex-col gap-0.5">
                 {items.map((item) => {
-                  const active = pathname === item.href || pathname.startsWith(item.href + '/')
+                  const active =
+                    item.href === '/inspections'
+                      ? pathname === '/inspections' || (pathname.startsWith('/inspections/') && pathname !== '/inspections/new')
+                      : pathname === item.href || pathname.startsWith(item.href + '/')
                   const Icon = item.icon
                   return (
                     <li key={item.href}>
