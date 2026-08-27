@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Upload,
@@ -12,91 +12,37 @@ import {
   ArrowLeft,
   Trash2,
   Link as LinkIcon,
+  RefreshCw,
+  X,
+  Loader2,
+  Download,
+  Save,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CATEGORIES, STATES } from '@/lib/data'
 import { cn } from '@/lib/utils'
+import { saveInspection, saveReport } from '@/lib/storage'
+import { generateInspectionPDF } from '@/lib/pdf-report'
+import type { AnalysisResult, AnalysisField } from '@/lib/types'
+import type { SavedInspection } from '@/lib/storage'
 
 type Step = 'capture' | 'scanning' | 'result'
 
-const TICKER_ITEMS = [
-  'Extracting text from label',
-  'Identifying declaration fields',
-  'Checking Rule 6 compliance',
-  'Calculating compliance score',
-]
-
-const MOCK_FIELDS = [
-  {
-    key: 'manufacturer',
-    label: 'Name & Address of Manufacturer',
-    rule: 'Rule 6(1)(a)',
-    status: 'compliant' as const,
-    extracted: 'Aurelia Cosmetics Pvt. Ltd., MIDC Mumbai 400093',
-    explanation: null,
-    x: 20,
-    y: 18,
-  },
-  {
-    key: 'commodity',
-    label: 'Common / Generic Name of Commodity',
-    rule: 'Rule 6(1)(b)',
-    status: 'compliant' as const,
-    extracted: 'Face Serum',
-    explanation: null,
-    x: 25,
-    y: 31,
-  },
-  {
-    key: 'quantity',
-    label: 'Net Quantity',
-    rule: 'Rule 6(1)(c)',
-    status: 'compliant' as const,
-    extracted: '30 ml',
-    explanation: null,
-    x: 18,
-    y: 43,
-  },
-  {
-    key: 'mrp',
-    label: 'Retail Sale Price (MRP)',
-    rule: 'Rule 6(1)(e)',
-    status: 'violation' as const,
-    severity: 'major' as const,
-    extracted: 'MRP Rs. 899',
-    explanation: 'The MRP is printed without the mandatory qualifier "inclusive of all taxes". Rule 6(1)(e) requires price declarations to specify "inclusive of all taxes" so consumers are not charged extra.',
-    x: 30,
-    y: 55,
-  },
-  {
-    key: 'consumerCare',
-    label: 'Consumer Care Details',
-    rule: 'Rule 6(1)(f)',
-    status: 'missing' as const,
-    severity: 'critical' as const,
-    extracted: null,
-    explanation: 'No consumer care details (contact number, email, or physical address) were detected on the label. Under Rule 6(1)(f), this is a critical omission for consumer grievance redressal.',
-    x: 40,
-    y: 67,
-  },
-  {
-    key: 'origin',
-    label: 'Country of Origin',
-    rule: 'Rule 6(1)(g)',
-    status: 'compliant' as const,
-    extracted: 'India',
-    explanation: null,
-    x: 22,
-    y: 79,
-  },
-]
+interface TickerItem {
+  text: string
+  done: boolean
+}
 
 export function NewInspection() {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+
   const [step, setStep] = useState<Step>('capture')
   const [image, setImage] = useState<string | null>(null)
+  const [imageFile, setImageFile] = useState<File | null>(null)
   const [fileName, setFileName] = useState<string>('')
   const [category, setCategory] = useState(CATEGORIES[0])
   const [batchNumber, setBatchNumber] = useState('')
@@ -104,9 +50,16 @@ export function NewInspection() {
   const [notes, setNotes] = useState('')
   const [productLink, setProductLink] = useState('')
 
-  const [scanStep, setScanStep] = useState(0)
+  const [tickerItems, setTickerItems] = useState<TickerItem[]>([])
+  const [result, setResult] = useState<AnalysisResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [activeKey, setActiveKey] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
+  const [isCameraOpen, setIsCameraOpen] = useState(false)
+  const [isScraping, setIsScraping] = useState(false)
+  const [scrapeError, setScrapeError] = useState<string | null>(null)
+  const [savedInspection, setSavedInspection] = useState<SavedInspection | null>(null)
+  const [isSaved, setIsSaved] = useState(false)
 
   // Clipboard Paste Support
   useEffect(() => {
@@ -122,6 +75,7 @@ export function NewInspection() {
           const file = item.getAsFile()
           if (file) {
             setFileName(file.name || 'Pasted Image')
+            setImageFile(file)
             const reader = new FileReader()
             reader.onload = () => {
               setImage(reader.result as string)
@@ -137,37 +91,29 @@ export function NewInspection() {
     return () => window.removeEventListener('paste', handlePaste)
   }, [step])
 
+  // Cleanup camera stream on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop())
+      }
+    }
+  }, [])
+
   // Derive product name from file name
-  const cleanProductName = fileName
+  const displayProductName = result?.productName
+    ? result.productName
+    : fileName
     ? fileName
         .replace(/\.[^/.]+$/, '')
         .replace(/[-_]/g, ' ')
         .split(' ')
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
         .join(' ')
-    : 'GlowDew Hydrating Face Serum'
+    : 'Product Label'
 
   // Step indicator state
   const currentStepNum = step === 'capture' ? 1 : step === 'scanning' ? 2 : 3
-
-  // Handle scanning simulation ticker
-  useEffect(() => {
-    if (step !== 'scanning') return
-    setScanStep(0)
-    
-    const interval = setInterval(() => {
-      setScanStep((prev) => {
-        if (prev >= 5) {
-          clearInterval(interval)
-          setStep('result')
-          return prev
-        }
-        return prev + 1
-      })
-    }, 800)
-
-    return () => clearInterval(interval)
-  }, [step])
 
   const triggerUpload = () => {
     fileInputRef.current?.click()
@@ -177,6 +123,7 @@ export function NewInspection() {
     const file = e.target.files?.[0]
     if (file) {
       setFileName(file.name)
+      setImageFile(file)
       const reader = new FileReader()
       reader.onload = () => {
         setImage(reader.result as string)
@@ -201,6 +148,7 @@ export function NewInspection() {
     const file = e.dataTransfer.files?.[0]
     if (file) {
       setFileName(file.name)
+      setImageFile(file)
       const reader = new FileReader()
       reader.onload = () => {
         setImage(reader.result as string)
@@ -209,26 +157,322 @@ export function NewInspection() {
     }
   }
 
-  const runAnalysis = () => {
-    if (!image) return
-    setStep('scanning')
+  // ---- Camera Capture ----
+  const openCamera = async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+      })
+      streamRef.current = mediaStream
+      setIsCameraOpen(true)
+
+      // Wait for the video element to be mounted
+      requestAnimationFrame(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream
+          videoRef.current.play()
+        }
+      })
+    } catch (err) {
+      console.error('Camera access error:', err)
+      setError('Camera access denied. Please allow camera permissions or upload an image instead.')
+    }
   }
 
-  const handleMockCameraCapture = () => {
-    setFileName('Camera Capture.png')
-    setImage('/product-label-serum.png')
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return
+
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.drawImage(video, 0, 0)
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return
+        const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' })
+        setImageFile(file)
+        setFileName('Camera Capture.jpg')
+
+        const reader = new FileReader()
+        reader.onload = () => {
+          setImage(reader.result as string)
+        }
+        reader.readAsDataURL(file)
+
+        closeCamera()
+      },
+      'image/jpeg',
+      0.92
+    )
+  }
+
+  const closeCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop())
+      streamRef.current = null
+    }
+    setIsCameraOpen(false)
+  }
+
+  // ---- URL Scraping ----
+  const handleScrapeUrl = async () => {
+    if (!productLink) return
+
+    setIsScraping(true)
+    setScrapeError(null)
+
+    try {
+      const res = await fetch('/api/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: productLink }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setScrapeError(data.error || 'Failed to fetch product page')
+        setIsScraping(false)
+        return
+      }
+
+      // Run analysis with scraped text
+      runUrlAnalysis(data.text, data.title)
+    } catch (err) {
+      setScrapeError(`Network error: ${(err as Error).message}`)
+      setIsScraping(false)
+    }
+  }
+
+  // ---- Analysis (Image Flow) ----
+  const runAnalysis = useCallback(async () => {
+    if (!imageFile && !image) return
+
+    setStep('scanning')
+    setError(null)
+    setResult(null)
+    setTickerItems([])
+
+    const formData = new FormData()
+
+    if (imageFile) {
+      formData.append('image', imageFile)
+    } else if (image) {
+      // Convert base64 data URL to blob
+      const res = await fetch(image)
+      const blob = await res.blob()
+      formData.append('image', blob, 'label.jpg')
+    }
+
+    formData.append('category', category)
+    formData.append('batchNumber', batchNumber)
+    formData.append('state', state)
+    formData.append('notes', notes)
+    formData.append('sourceType', 'image')
+
+    try {
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const err = await response.json()
+        setError(err.error || 'Analysis failed')
+        setStep('capture')
+        return
+      }
+
+      // Read SSE stream
+      const reader = response.body?.getReader()
+      if (!reader) {
+        setError('Failed to read response stream')
+        setStep('capture')
+        return
+      }
+
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+
+        // Parse SSE events from buffer
+        const lines = buffer.split('\n')
+        buffer = ''
+
+        let eventType = ''
+        let eventData = ''
+
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            eventType = line.slice(7).trim()
+          } else if (line.startsWith('data: ')) {
+            eventData = line.slice(6).trim()
+          } else if (line === '' && eventType && eventData) {
+            // Process complete event
+            try {
+              const parsed = JSON.parse(eventData)
+
+              if (eventType === 'progress') {
+                setTickerItems((prev) => {
+                  const updated = prev.map((t) => ({ ...t, done: true }))
+                  return [...updated, { text: parsed.message, done: false }]
+                })
+              } else if (eventType === 'result') {
+                // Mark last ticker item as done
+                setTickerItems((prev) => prev.map((t) => ({ ...t, done: true })))
+                setResult(parsed as AnalysisResult)
+                // Short delay before showing result for animation
+                await new Promise((r) => setTimeout(r, 600))
+                setStep('result')
+              } else if (eventType === 'error') {
+                setError(parsed.error || 'Analysis failed')
+                setStep('capture')
+              }
+            } catch {
+              // Incomplete JSON, continue buffering
+            }
+
+            eventType = ''
+            eventData = ''
+          } else if (line !== '') {
+            // Incomplete event, keep in buffer
+            buffer += line + '\n'
+          }
+        }
+      }
+    } catch (err) {
+      setError(`Network error: ${(err as Error).message}`)
+      setStep('capture')
+    }
+  }, [imageFile, image, category, batchNumber, state, notes])
+
+  // ---- Analysis (URL Flow) ----
+  const runUrlAnalysis = async (listingText: string, title: string) => {
+    setStep('scanning')
+    setError(null)
+    setResult(null)
+    setTickerItems([])
+    setIsScraping(false)
+    setFileName(title || 'E-commerce Listing')
+
+    try {
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceType: 'url',
+          listingText,
+          category,
+          batchNumber,
+          state,
+          notes,
+        }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json()
+        setError(err.error || 'Analysis failed')
+        setStep('capture')
+        return
+      }
+
+      // Read SSE stream (same logic as image flow)
+      const reader = response.body?.getReader()
+      if (!reader) {
+        setError('Failed to read response stream')
+        setStep('capture')
+        return
+      }
+
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+
+        const lines = buffer.split('\n')
+        buffer = ''
+
+        let eventType = ''
+        let eventData = ''
+
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            eventType = line.slice(7).trim()
+          } else if (line.startsWith('data: ')) {
+            eventData = line.slice(6).trim()
+          } else if (line === '' && eventType && eventData) {
+            try {
+              const parsed = JSON.parse(eventData)
+
+              if (eventType === 'progress') {
+                setTickerItems((prev) => {
+                  const updated = prev.map((t) => ({ ...t, done: true }))
+                  return [...updated, { text: parsed.message, done: false }]
+                })
+              } else if (eventType === 'result') {
+                setTickerItems((prev) => prev.map((t) => ({ ...t, done: true })))
+                setResult(parsed as AnalysisResult)
+                await new Promise((r) => setTimeout(r, 600))
+                setStep('result')
+              } else if (eventType === 'error') {
+                setError(parsed.error || 'Analysis failed')
+                setStep('capture')
+              }
+            } catch {
+              // continue
+            }
+
+            eventType = ''
+            eventData = ''
+          } else if (line !== '') {
+            buffer += line + '\n'
+          }
+        }
+      }
+    } catch (err) {
+      setError(`Network error: ${(err as Error).message}`)
+      setStep('capture')
+    }
   }
 
   const reset = () => {
     setImage(null)
+    setImageFile(null)
     setFileName('')
     setBatchNumber('')
     setNotes('')
     setProductLink('')
-    setScanStep(0)
+    setTickerItems([])
+    setResult(null)
+    setError(null)
     setActiveKey(null)
+    setScrapeError(null)
+    setSavedInspection(null)
+    setIsSaved(false)
     setStep('capture')
   }
+
+  // Computed result values
+  const violations = result?.fields.filter((f) => f.status !== 'compliant') ?? []
+  const scoreColor =
+    (result?.score ?? 0) >= 85 ? 'text-success' : (result?.score ?? 0) >= 60 ? 'text-warning' : 'text-danger'
+  const strokeColor =
+    (result?.score ?? 0) >= 85 ? 'stroke-success' : (result?.score ?? 0) >= 60 ? 'stroke-warning' : 'stroke-danger'
+  const statusText = result?.status === 'compliant' ? 'COMPLIANT' : 'NON-COMPLIANT'
+  const statusColor = result?.status === 'compliant' ? 'text-success' : 'text-danger'
 
   const fieldInputCls =
     'h-10 w-full rounded-md border border-muted-foreground/30 bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all'
@@ -261,18 +505,32 @@ export function NewInspection() {
           }
         `}</style>
 
-        {/* Step progress bar (3 discrete 20px steps with solid green lines between completed steps, gray for active/upcoming) */}
+        {/* Hidden canvas for camera capture */}
+        <canvas ref={canvasRef} className="hidden" />
+
+        {/* Error banner */}
+        {error && step === 'capture' && (
+          <div className="mb-6 flex items-start gap-3 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 animate-[fadeIn_0.3s_ease-out_forwards]">
+            <AlertCircle className="size-5 text-danger shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-danger">Analysis Failed</p>
+              <p className="text-sm text-muted-foreground mt-0.5">{error}</p>
+            </div>
+            <button onClick={() => setError(null)} className="text-muted-foreground hover:text-foreground">
+              <X className="size-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Step progress bar */}
         <div className="relative mb-10 max-w-md mx-auto select-none">
-          {/* Connecting lines container */}
           <div className="absolute left-8 right-8 top-[10px] flex items-center justify-between z-0 pointer-events-none">
-            {/* Line 1: Step 1 -> Step 2 */}
             <div
               className={cn(
                 'h-[1px] flex-1 transition-colors duration-300',
                 currentStepNum > 1 ? 'bg-success' : 'bg-border'
               )}
             />
-            {/* Line 2: Step 2 -> Step 3 */}
             <div
               className={cn(
                 'h-[1px] flex-1 transition-colors duration-300',
@@ -291,7 +549,6 @@ export function NewInspection() {
               const completed = s.num < currentStepNum
               return (
                 <div key={s.num} className="flex flex-col items-center gap-1.5 w-20">
-                  {/* 20px Circle */}
                   <span
                     className={cn(
                       'flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold transition-all duration-300 z-10',
@@ -302,8 +559,6 @@ export function NewInspection() {
                   >
                     {completed ? <CheckCircle2 className="size-3 text-white" strokeWidth={3} /> : s.num}
                   </span>
-
-                  {/* Step Label below circle */}
                   <span
                     className={cn(
                       'text-xs font-medium transition-colors duration-300 text-center whitespace-nowrap',
@@ -329,6 +584,39 @@ export function NewInspection() {
               accept="image/*"
               className="hidden"
             />
+
+            {/* Camera Modal */}
+            {isCameraOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 animate-[fadeIn_0.2s_ease-out]">
+                <div className="relative w-full max-w-2xl mx-4">
+                  <div className="relative rounded-lg overflow-hidden bg-black">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full max-h-[70vh] object-contain"
+                    />
+                    <div className="absolute bottom-0 inset-x-0 flex items-center justify-center gap-4 p-6 bg-gradient-to-t from-black/80 to-transparent">
+                      <button
+                        onClick={closeCamera}
+                        className="flex size-12 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors backdrop-blur-sm"
+                      >
+                        <X className="size-5" />
+                      </button>
+                      <button
+                        onClick={capturePhoto}
+                        className="flex size-16 items-center justify-center rounded-full bg-white hover:bg-white/90 transition-colors shadow-lg"
+                      >
+                        <div className="size-12 rounded-full border-4 border-gray-800" />
+                      </button>
+                      <div className="size-12" /> {/* spacer for centering */}
+                    </div>
+                  </div>
+                  <p className="text-center text-white/70 text-sm mt-3">Position the product label within the frame</p>
+                </div>
+              </div>
+            )}
 
             {/* Two-Column Side-by-Side Layout */}
             <div className="grid gap-6 lg:grid-cols-2 items-stretch min-h-[420px]">
@@ -360,6 +648,7 @@ export function NewInspection() {
                           onClick={(e) => {
                             e.stopPropagation()
                             setImage(null)
+                            setImageFile(null)
                             setFileName('')
                           }}
                           className="bg-black/70 hover:bg-black/90 text-white text-xs px-2.5 py-1 rounded-md font-semibold transition-all shadow-sm cursor-pointer flex items-center gap-1"
@@ -382,10 +671,10 @@ export function NewInspection() {
                   )}
                 </div>
 
-                {/* Compact Secondary Camera Button */}
+                {/* Camera Button */}
                 <button
                   type="button"
-                  onClick={handleMockCameraCapture}
+                  onClick={openCamera}
                   className="flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-background text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors cursor-pointer"
                 >
                   <Camera className="size-3.5 text-muted-foreground" /> Take Photo Using Camera
@@ -408,27 +697,40 @@ export function NewInspection() {
                     <LinkIcon className="absolute left-3 size-3.5 text-muted-foreground" />
                     <input
                       value={productLink}
-                      onChange={(e) => setProductLink(e.target.value)}
+                      onChange={(e) => {
+                        setProductLink(e.target.value)
+                        setScrapeError(null)
+                      }}
                       placeholder="https://amazon.in/dp/..."
                       className="h-10 w-full rounded-md border border-muted-foreground/30 bg-background pl-9 pr-16 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                     />
                     <button
                       type="button"
-                      onClick={() => {
-                        if (productLink) {
-                          setFileName('Amazon Scraped Label.png')
-                          setImage('/product-label-serum.png')
-                        }
-                      }}
-                      className="absolute right-1 px-3 py-1 bg-primary text-white text-xs font-medium rounded hover:bg-primary/90 transition-colors cursor-pointer"
+                      onClick={handleScrapeUrl}
+                      disabled={!productLink || isScraping}
+                      className={cn(
+                        'absolute right-1 px-3 py-1 text-xs font-medium rounded transition-colors cursor-pointer flex items-center gap-1',
+                        productLink && !isScraping
+                          ? 'bg-primary text-white hover:bg-primary/90'
+                          : 'bg-primary/40 text-white cursor-not-allowed'
+                      )}
                     >
-                      Scan
+                      {isScraping ? (
+                        <>
+                          <Loader2 className="size-3 animate-spin" /> Scanning
+                        </>
+                      ) : (
+                        'Scan'
+                      )}
                     </button>
                   </div>
+                  {scrapeError && (
+                    <p className="mt-1.5 text-xs text-danger">{scrapeError}</p>
+                  )}
                 </label>
               </div>
 
-              {/* Right Column: Form Fields & Solid Full-Width Run Analysis Button */}
+              {/* Right Column: Form Fields & Run Analysis Button */}
               <div className="flex flex-col justify-between rounded-lg border border-border bg-white p-6 shadow-sm">
                 <div className="space-y-4">
                   <label className="text-sm block">
@@ -481,7 +783,7 @@ export function NewInspection() {
                   </label>
                 </div>
 
-                {/* Full-width Solid Amber-Orange "Run Analysis →" Button */}
+                {/* Full-width Solid Run Analysis Button */}
                 <div className="pt-6 mt-6 border-t border-border">
                   <button
                     onClick={runAnalysis}
@@ -504,77 +806,86 @@ export function NewInspection() {
         {/* STATE 2 — Analysis in Progress */}
         {step === 'scanning' && (
           <div className="grid gap-8 lg:grid-cols-5 items-start animate-[fadeIn_0.3s_ease-out_forwards]">
-            {/* Left Column (60% width) - Uploaded Image (1px light gray border, no inner padding) */}
+            {/* Left Column - Uploaded Image or URL info */}
             <div className="lg:col-span-3 border border-border rounded-lg overflow-hidden bg-white flex items-center justify-center p-0 shadow-sm min-h-[400px]">
-              {image && (
+              {image ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={image}
                   alt="Product label preview"
                   className="w-full max-h-[450px] object-contain rounded animate-[fadeIn_0.4s_ease-out]"
                 />
+              ) : (
+                <div className="flex flex-col items-center gap-3 text-center p-8">
+                  <LinkIcon className="size-12 text-muted-foreground/50" strokeWidth={1.5} />
+                  <p className="text-sm font-medium text-foreground">{fileName || 'Analyzing product listing...'}</p>
+                  <p className="text-xs text-muted-foreground max-w-xs">{productLink}</p>
+                </div>
               )}
             </div>
 
-            {/* Right Column (40% width) - Status ticker directly below heading with 12px gap */}
+            {/* Right Column - Status ticker */}
             <div className="lg:col-span-2 flex flex-col">
-              <p className="text-base font-semibold text-foreground">Analysing label...</p>
+              <p className="text-base font-semibold text-foreground">Analysing {image ? 'label' : 'listing'}...</p>
 
-              {/* Status Ticker with 12px gap from heading */}
               <ul className="space-y-3 mt-3">
-                {TICKER_ITEMS.map((item, idx) => {
-                  const visible = scanStep >= idx + 1
-                  const completed = scanStep > idx + 1
-                  const active = scanStep === idx + 1
-
-                  if (!visible) return null
-
-                  return (
-                    <li key={item} className="flex items-center gap-2.5 text-sm animate-[fadeIn_0.3s_ease-out_forwards]">
-                      {completed ? (
-                        <CheckCircle2 className="size-4 text-success shrink-0 font-bold" strokeWidth={2.5} />
-                      ) : active ? (
-                        <span className="flex size-4 items-center justify-center shrink-0">
-                          <span className="size-2 rounded-full bg-primary pulse-amber" />
-                        </span>
-                      ) : (
-                        <span className="size-4 shrink-0" />
-                      )}
-                      <span className={cn(
-                        'transition-colors duration-200',
-                        completed ? 'text-muted-foreground' : active ? 'text-foreground font-semibold animate-pulse' : 'text-muted-foreground/60'
-                      )}>
-                        {item}
+                {tickerItems.map((item, idx) => (
+                  <li key={idx} className="flex items-center gap-2.5 text-sm animate-[fadeIn_0.3s_ease-out_forwards]">
+                    {item.done ? (
+                      <CheckCircle2 className="size-4 text-success shrink-0 font-bold" strokeWidth={2.5} />
+                    ) : (
+                      <span className="flex size-4 items-center justify-center shrink-0">
+                        <span className="size-2 rounded-full bg-primary pulse-amber" />
                       </span>
-                    </li>
-                  )
-                })}
+                    )}
+                    <span
+                      className={cn(
+                        'transition-colors duration-200',
+                        item.done ? 'text-muted-foreground' : 'text-foreground font-semibold animate-pulse'
+                      )}
+                    >
+                      {item.text}
+                    </span>
+                  </li>
+                ))}
+
+                {tickerItems.length === 0 && (
+                  <li className="flex items-center gap-2.5 text-sm">
+                    <span className="flex size-4 items-center justify-center shrink-0">
+                      <span className="size-2 rounded-full bg-primary pulse-amber" />
+                    </span>
+                    <span className="text-foreground font-semibold animate-pulse">Initializing analysis...</span>
+                  </li>
+                )}
               </ul>
             </div>
           </div>
         )}
 
         {/* STATE 3 — Compliance Results */}
-        {step === 'result' && (
+        {step === 'result' && result && (
           <div className="flex flex-col gap-6">
             {/* Top Section: Product Identity Bar */}
             <div className="flex items-center justify-between border-b border-border pb-6 gap-4 animate-[fadeIn_0.3s_ease-out_forwards]">
               <div>
-                <h1 className="text-[20px] font-bold text-foreground">{cleanProductName}</h1>
+                <h1 className="text-[20px] font-bold text-foreground">{displayProductName}</h1>
                 <p className="text-[13px] text-muted-foreground mt-0.5">
-                  Manufacturer: Aurelia Cosmetics Pvt. Ltd. · Batch: {batchNumber || 'AC-SR-1183'} · Region: {state}
+                  Manufacturer: {result.manufacturer} · Batch: {batchNumber || '—'} · Region: {state}
+                  {result.sourceType === 'url' && ' · Source: E-commerce listing'}
                 </p>
               </div>
               
               <div className="flex items-center gap-4 shrink-0">
                 <div className="text-right">
-                  <span className="text-sm font-semibold tracking-wider text-danger">
-                    NON-COMPLIANT
+                  <span className={cn('text-sm font-semibold tracking-wider', statusColor)}>
+                    {statusText}
                   </span>
-                  <p className="text-[13px] text-muted-foreground mt-0.5">2 violations detected</p>
+                  <p className="text-[13px] text-muted-foreground mt-0.5">
+                    {violations.length === 0 ? 'All declarations compliant' : `${violations.length} violation${violations.length > 1 ? 's' : ''} detected`}
+                  </p>
                 </div>
 
-                {/* 70px Diameter SVG Circular Score Ring (44px Bold Number) */}
+                {/* Score Ring */}
                 <div className="relative size-[70px] flex items-center justify-center shrink-0">
                   <svg className="size-full -rotate-90">
                     <circle
@@ -589,16 +900,18 @@ export function NewInspection() {
                       cx="35"
                       cy="35"
                       r="30"
-                      className="stroke-danger transition-all duration-1000 ease-out"
+                      className={cn(strokeColor, 'transition-all duration-1000 ease-out')}
                       strokeWidth="4"
                       strokeDasharray="188"
-                      strokeDashoffset={188 - (188 * 66) / 100}
+                      strokeDashoffset={188 - (188 * result.score) / 100}
                       strokeLinecap="round"
                       fill="transparent"
                     />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-[44px] font-bold text-danger leading-none">66</span>
+                    <span className={cn('text-[44px] font-bold leading-none', scoreColor)}>
+                      {result.score}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -606,10 +919,10 @@ export function NewInspection() {
 
             {/* Two Columns */}
             <div className="grid gap-8 lg:grid-cols-10 items-start animate-[fadeIn_0.4s_ease-out_forwards]">
-              {/* Left Column (55% width) - Annotated Image */}
+              {/* Left Column - Image or URL summary */}
               <div className="lg:col-span-5 space-y-4">
                 <div className="relative border border-border rounded-lg overflow-hidden bg-white flex items-center justify-center p-4 shadow-sm">
-                  {image && (
+                  {image ? (
                     <div className="relative max-h-[450px]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
@@ -617,61 +930,86 @@ export function NewInspection() {
                         alt="Scanned product label"
                         className="max-h-[450px] w-auto object-contain rounded"
                       />
-
-                      {/* Interactive Annotation Markers */}
-                      {MOCK_FIELDS.map((f, idx) => {
-                        const active = activeKey === f.key
-                        const ringColor =
-                          f.status === 'compliant'
-                            ? 'border-success bg-success/85 text-success-foreground'
-                            : f.status === 'violation'
-                            ? 'border-warning bg-warning/85 text-warning-foreground'
-                            : 'border-danger bg-danger/85 text-danger-foreground'
-
-                        return (
-                          <button
-                            key={f.key}
-                            type="button"
-                            onMouseEnter={() => setActiveKey(f.key)}
-                            onMouseLeave={() => setActiveKey(null)}
-                            className={cn(
-                              'absolute flex size-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border text-[10px] font-bold shadow-md transition-all duration-150',
-                              ringColor,
-                              active ? 'scale-125 z-10 ring-2 ring-primary/40' : 'scale-100 z-0'
-                            )}
-                            style={{
-                              left: `${f.x}%`,
-                              top: `${f.y}%`,
-                            }}
-                            aria-label={`Marker ${idx + 1}`}
-                          >
-                            {idx + 1}
-                          </button>
-                        )
-                      })}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3 text-center py-12">
+                      <LinkIcon className="size-10 text-muted-foreground/50" strokeWidth={1.5} />
+                      <p className="text-sm font-medium text-foreground">E-commerce Listing Analysis</p>
+                      <p className="text-xs text-muted-foreground max-w-xs break-all">{productLink}</p>
                     </div>
                   )}
                 </div>
 
-                {/* Action Buttons (48% width each with gap) */}
-                <div className="flex justify-between items-center gap-3">
-                  <Button variant="outline" onClick={reset} className="w-[48%] rounded-md">
-                    Scan Another
-                  </Button>
-                  <Button
-                    onClick={() => router.push('/inspections')}
-                    className="w-[48%] bg-primary text-white hover:bg-primary/95 rounded-md"
+                {/* Action Buttons */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex justify-between items-center gap-3">
+                    <Button variant="outline" onClick={reset} className="w-[48%] rounded-md">
+                      Scan Another
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        if (!result) return
+                        const inspection = saveInspection(result, {
+                          batchNumber,
+                          state,
+                          notes,
+                          image,
+                          productLink: productLink || null,
+                        })
+                        saveReport(inspection)
+                        setSavedInspection(inspection)
+                        setIsSaved(true)
+                      }}
+                      disabled={isSaved}
+                      className={cn(
+                        'w-[48%] rounded-md transition-all',
+                        isSaved
+                          ? 'bg-success text-white hover:bg-success/90'
+                          : 'bg-primary text-white hover:bg-primary/95'
+                      )}
+                    >
+                      {isSaved ? (
+                        <><CheckCircle2 className="size-4" /> Saved</>
+                      ) : (
+                        <><Save className="size-4" /> Save Report</>
+                      )}
+                    </Button>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (!result) return
+                      // Use savedInspection if available, otherwise create a temporary one for PDF
+                      const inspection: SavedInspection = savedInspection ?? {
+                        id: 'DRAFT-' + Date.now(),
+                        productName: result.productName,
+                        manufacturer: result.manufacturer,
+                        category: result.category,
+                        score: result.score,
+                        status: result.status,
+                        date: new Date().toISOString().slice(0, 10),
+                        state,
+                        batchNumber,
+                        inspectorName: 'Inspector',
+                        sourceType: result.sourceType,
+                        image,
+                        productLink: productLink || null,
+                        notes,
+                        fields: result.fields,
+                      }
+                      generateInspectionPDF(inspection)
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 bg-navy text-white hover:bg-navy/90 py-3 rounded-md text-sm font-semibold transition-colors shadow-sm"
                   >
-                    Save Report
-                  </Button>
+                    <Download className="size-4" /> Download PDF Report
+                  </button>
                 </div>
               </div>
 
-              {/* Right Column (45% width) - scrollable list */}
+              {/* Right Column - scrollable fields list */}
               <div className="lg:col-span-5 flex flex-col">
                 <div className="max-h-[450px] overflow-y-auto pr-1">
                   <ul className="divide-y divide-border border-b border-border">
-                    {MOCK_FIELDS.map((f) => {
+                    {result.fields.map((f: AnalysisField) => {
                       const active = activeKey === f.key
                       const isFailing = f.status !== 'compliant'
 
@@ -686,7 +1024,7 @@ export function NewInspection() {
                             active && !isFailing ? 'bg-muted/40 px-4 -mx-4 rounded-md' : ''
                           )}
                         >
-                          {/* 16px Status Icon */}
+                          {/* Status Icon */}
                           <div className="shrink-0 mt-0.5">
                             {f.status === 'compliant' ? (
                               <CheckCircle2 className="size-4 text-success" strokeWidth={1.5} />
@@ -708,7 +1046,7 @@ export function NewInspection() {
                                 <span
                                   className={cn(
                                     'text-[10px] font-bold tracking-wider uppercase',
-                                    f.severity === 'critical' ? 'text-danger' : 'text-warning-foreground'
+                                    f.severity === 'critical' ? 'text-danger' : f.severity === 'major' ? 'text-warning-foreground' : 'text-muted-foreground'
                                   )}
                                 >
                                   {f.severity}
@@ -716,12 +1054,10 @@ export function NewInspection() {
                               )}
                             </div>
 
-                            {/* Extracted value text: 12px italic light gray */}
                             <p className="text-xs italic text-slate-400 mt-0.5">
-                              {f.extracted ? `“${f.extracted}”` : 'Not detected on label'}
+                              {f.extracted ? `"${f.extracted}"` : 'Not detected on label'}
                             </p>
 
-                            {/* Violation explanation text: 12px regular medium gray */}
                             {f.explanation && (
                               <p className="text-xs font-normal text-slate-600 mt-1 leading-relaxed">
                                 {f.explanation}
@@ -734,10 +1070,22 @@ export function NewInspection() {
                   </ul>
                 </div>
 
-                {/* PDF Download Button with 16px margin above & thin divider */}
+                {/* Retry section */}
                 <div className="border-t border-border pt-4 mt-4">
-                  <button className="w-full bg-navy text-white hover:bg-navy/90 py-3 rounded-md text-sm font-semibold transition-colors shadow-sm">
-                    Download PDF Report
+                  <button
+                    onClick={() => {
+                      setResult(null)
+                      setSavedInspection(null)
+                      setIsSaved(false)
+                      if (image) {
+                        runAnalysis()
+                      } else if (productLink) {
+                        handleScrapeUrl()
+                      }
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 border border-border hover:bg-muted/30 py-3 rounded-md text-sm font-medium transition-colors"
+                  >
+                    <RefreshCw className="size-3.5" /> Re-analyze
                   </button>
                 </div>
               </div>
