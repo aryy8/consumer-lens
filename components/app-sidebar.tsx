@@ -34,13 +34,13 @@ export function AppSidebar({ collapsed, toggleCollapsed }: AppSidebarProps) {
       >
         <div className="group/logo relative size-8 shrink-0">
           {/* App Icon (Logo) */}
-          <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground transition-opacity duration-200 group-hover/logo:opacity-0">
+          <div className="flex size-8 items-center justify-center rounded-md bg-[#2563EB] text-white transition-opacity duration-200 group-hover/logo:opacity-0">
             <ScanSearch className="size-5" strokeWidth={2.25} />
           </div>
           {/* Collapse Button Overlay */}
           <button
             onClick={toggleCollapsed}
-            className="absolute inset-0 flex size-8 items-center justify-center rounded-md bg-sidebar-accent border border-sidebar-border text-white opacity-0 group-hover/logo:opacity-100 transition-opacity duration-200 cursor-pointer shadow-sm"
+            className="absolute inset-0 flex size-8 items-center justify-center rounded-md bg-[#DBEAFE] border border-[#E2E8F0] text-[#2563EB] opacity-0 group-hover/logo:opacity-100 transition-opacity duration-200 cursor-pointer shadow-sm"
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {collapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
@@ -49,10 +49,10 @@ export function AppSidebar({ collapsed, toggleCollapsed }: AppSidebarProps) {
 
         {!collapsed && (
           <div className="flex flex-col leading-none transition-opacity duration-300">
-            <span className="text-[15px] font-semibold tracking-tight text-white whitespace-nowrap">
+            <span className="text-[15px] font-semibold tracking-tight text-[#12203c] whitespace-nowrap">
               Consumer Lens
             </span>
-            <span className="mt-1 text-[10px] font-medium uppercase tracking-[0.14em] text-sidebar-foreground/55 whitespace-nowrap">
+            <span className="mt-1 text-[10px] font-medium uppercase tracking-[0.14em] text-[#64748B]/80 whitespace-nowrap">
               Legal Metrology
             </span>
           </div>
@@ -61,7 +61,7 @@ export function AppSidebar({ collapsed, toggleCollapsed }: AppSidebarProps) {
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         {!collapsed && (
-          <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/45 transition-opacity duration-300">
+          <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#64748B]/60 transition-opacity duration-300">
             Enforcement
           </p>
         )}
@@ -80,13 +80,13 @@ export function AppSidebar({ collapsed, toggleCollapsed }: AppSidebarProps) {
                     'group flex items-center rounded-md py-2 px-3 transition-all duration-300 text-sm font-medium',
                     collapsed ? 'gap-0 justify-center' : 'gap-3',
                     active
-                      ? 'bg-sidebar-accent text-white'
-                      : 'text-sidebar-foreground/75 hover:bg-sidebar-accent/60 hover:text-white',
+                      ? 'bg-[#DBEAFE] text-[#2563EB]'
+                      : 'text-[#64748B] hover:bg-[#DBEAFE]/50 hover:text-[#2563EB]',
                   )}
                   title={collapsed ? item.label : undefined}
                 >
                   <Icon
-                    className={cn('size-[18px] shrink-0 transition-transform duration-300', active ? 'text-primary' : 'text-sidebar-foreground/60')}
+                    className={cn('size-[18px] shrink-0 transition-transform duration-300', active ? 'text-[#2563EB]' : 'text-[#64748B]/80')}
                     strokeWidth={2}
                   />
                   {!collapsed && (
@@ -101,14 +101,14 @@ export function AppSidebar({ collapsed, toggleCollapsed }: AppSidebarProps) {
 
       <div className="border-t border-sidebar-border px-4 py-4 overflow-hidden">
         {!collapsed ? (
-          <p className="text-[11px] leading-relaxed text-sidebar-foreground/55 whitespace-nowrap transition-opacity duration-300">
+          <p className="text-[11px] leading-relaxed text-[#64748B]/70 whitespace-nowrap transition-opacity duration-300">
             Ministry of Consumer Affairs
             <br />
             Govt. of India
           </p>
         ) : (
           <p
-            className="text-[10px] text-center font-bold text-sidebar-foreground/45 transition-all duration-300"
+            className="text-[10px] text-center font-bold text-[#64748B]/60 transition-all duration-300"
             title="Ministry of Consumer Affairs · Govt. of India"
           >
             MCA
