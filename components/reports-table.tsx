@@ -123,14 +123,14 @@ export function ReportsTable({ reports }: { reports: ReportRecord[] }) {
                             alert('Inspection details not found.')
                           }
                         }}
-                        className="text-xs font-medium text-muted-foreground hover:text-foreground opacity-0 transition-opacity group-hover:opacity-100 flex items-center gap-1 cursor-pointer"
+                        className="text-xs font-medium text-muted-foreground hover:text-foreground md:opacity-0 transition-opacity md:group-hover:opacity-100 flex items-center gap-1 cursor-pointer"
                         title="Download PDF Report"
                       >
                         <FileDown className="size-3.5" /> PDF
                       </button>
                       <Link
                         href={`/inspections/${r.inspectionId}`}
-                        className="text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100"
+                        className="text-xs font-medium text-primary md:opacity-0 transition-opacity md:group-hover:opacity-100"
                       >
                         Open
                       </Link>

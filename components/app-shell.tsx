@@ -176,7 +176,36 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="min-w-0 flex-1 p-5 lg:p-8">{children}</main>
+        <main className="min-w-0 flex-1 p-5 pb-24 lg:p-8 lg:pb-8">{children}</main>
+
+        {/* Mobile bottom navigation bar */}
+        <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background pb-safe-bottom lg:hidden shadow-lg">
+          <ul className="flex h-16 items-center justify-around px-2">
+            {items.slice(0, 5).map((item) => {
+              const active =
+                item.href === '/inspections'
+                  ? pathname === '/inspections' || (pathname.startsWith('/inspections/') && pathname !== '/inspections/new')
+                  : pathname === item.href || pathname.startsWith(item.href + '/')
+              const Icon = item.icon
+              return (
+                <li key={item.href} className="flex-1">
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      'flex flex-col items-center justify-center gap-1.5 py-1.5 text-center transition-colors',
+                      active ? 'text-primary' : 'text-slate hover:text-primary',
+                    )}
+                  >
+                    <Icon className="size-[20px]" strokeWidth={active ? 2.25 : 2} />
+                    <span className="text-[10px] font-semibold leading-none tracking-tight">
+                      {item.label === 'Product Repository' ? 'Repository' : item.label}
+                    </span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </nav>
       </div>
     </div>
   )

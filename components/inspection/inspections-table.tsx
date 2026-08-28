@@ -124,7 +124,7 @@ export function InspectionsTable({ inspections }: { inspections: Inspection[] })
                   <td className="px-5 py-3 text-right">
                     <Link
                       href={`/inspections/${i.id}`}
-                      className="inline-flex items-center gap-0.5 text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100"
+                      className="inline-flex items-center gap-0.5 text-xs font-medium text-primary md:opacity-0 transition-opacity md:group-hover:opacity-100"
                     >
                       View <ChevronRight className="size-3.5" />
                     </Link>

@@ -629,7 +629,7 @@ export function NewInspection() {
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                   className={cn(
-                    'group/dropbox relative flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-6 text-center transition-all duration-200 cursor-pointer min-h-[340px] select-none bg-[#FAF8F5]',
+                    'group/dropbox relative flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-4 md:p-6 text-center transition-all duration-200 cursor-pointer min-h-[180px] md:min-h-[340px] select-none bg-[#FAF8F5]',
                     image
                       ? 'border-border bg-white'
                       : dragActive
@@ -639,9 +639,9 @@ export function NewInspection() {
                   title="Click or drag to upload an image. You can also paste directly using Ctrl+V / Cmd+V."
                 >
                   {image ? (
-                    <div className="relative w-full h-[300px] flex items-center justify-center overflow-hidden rounded-md bg-muted/20">
+                    <div className="relative w-full h-[180px] md:h-[300px] flex items-center justify-center overflow-hidden rounded-md bg-muted/20">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={image} alt="Uploaded label preview" className="max-h-[280px] w-auto object-contain rounded-md animate-[fadeIn_0.3s_ease-out]" />
+                      <img src={image} alt="Uploaded label preview" className="max-h-[160px] md:max-h-[280px] w-auto object-contain rounded-md animate-[fadeIn_0.3s_ease-out]" />
                       
                       <div className="absolute top-2 right-2">
                         <button
@@ -659,13 +659,13 @@ export function NewInspection() {
                     </div>
                   ) : (
                     <>
-                      <Upload className="size-12 text-muted-foreground/60 transition-colors group-hover/dropbox:text-primary" strokeWidth={1.5} />
+                      <Upload className="size-8 md:size-12 text-muted-foreground/60 transition-colors group-hover/dropbox:text-primary" strokeWidth={1.5} />
                       <div className="max-w-[280px]">
-                        <p className="text-base font-medium text-foreground transition-colors group-hover/dropbox:text-primary">
+                        <p className="text-sm md:text-base font-medium text-foreground transition-colors group-hover/dropbox:text-primary">
                           Drop your product label here
                         </p>
-                        <p className="mt-1 text-xs text-muted-foreground">PNG, JPG, HEIC up to 20MB</p>
-                        <p className="mt-1 text-[11px] text-muted-foreground/70">Or paste directly (Cmd+V / Ctrl+V)</p>
+                        <p className="mt-0.5 md:mt-1 text-[11px] md:text-xs text-muted-foreground">PNG, JPG, HEIC up to 20MB</p>
+                        <p className="mt-0.5 md:mt-1 text-[10px] md:text-[11px] text-muted-foreground/70">Or paste directly (Cmd+V / Ctrl+V)</p>
                       </div>
                     </>
                   )}

@@ -22,6 +22,7 @@ import {
   FileWarning,
   Gauge,
   ScanLine,
+  ChevronRight,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import {
@@ -200,7 +201,30 @@ export function DashboardView() {
                   </Link>
                 }
               />
-              <div className="overflow-x-auto">
+              {/* Mobile Card List View */}
+              <div className="block md:hidden divide-y divide-border">
+                {mine.slice(0, 6).map((insp) => (
+                  <Link
+                    key={insp.id}
+                    href={`/inspections/${insp.id}`}
+                    className="flex items-center justify-between p-4 transition-colors hover:bg-muted/30"
+                  >
+                    <div className="min-w-0 flex-1 pr-3">
+                      <p className="truncate text-sm font-semibold text-foreground">{insp.productName}</p>
+                      <p className="mt-1 truncate text-xs text-muted-foreground">
+                        {insp.category} · {insp.date}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <ScoreBadge score={insp.score} />
+                      <ChevronRight className="size-4 text-muted-foreground" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead>
                     <tr className="border-b border-border bg-muted/40 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -247,35 +271,39 @@ export function DashboardView() {
               <h3 className="text-sm font-semibold text-foreground">Violation Breakdown</h3>
               <p className="text-xs text-muted-foreground mt-0.5">By severity class</p>
               
-              <div className="flex justify-center py-4">
-                <ResponsiveContainer width="100%" height={140}>
-                  <PieChart>
-                    <Pie
-                      data={breakdownData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={45}
-                      outerRadius={60}
-                      paddingAngle={4}
-                      dataKey="value"
-                    >
-                      {breakdownData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={tooltipStyle} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Legend */}
-              <div className="flex justify-around border-b border-border pb-4 text-xs font-medium">
-                {breakdownData.map((item) => (
-                  <div key={item.name} className="flex flex-col items-center">
-                    <span className="text-[10px] uppercase text-muted-foreground">{item.name}</span>
-                    <span className="mt-0.5 text-base font-semibold text-foreground">{item.value}</span>
-                  </div>
-                ))}
+              {/* Dynamic Side-by-Side Pie Chart & Vertical Legend */}
+              <div className="flex flex-row items-center justify-center gap-6 py-4 border-b border-border pb-6">
+                <div className="size-28 shrink-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={breakdownData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={32}
+                        outerRadius={46}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {breakdownData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fill} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={tooltipStyle} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex flex-col gap-2.5">
+                  {breakdownData.map((item) => (
+                    <div key={item.name} className="flex items-center gap-2">
+                      <span className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: item.fill }} />
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground leading-none">{item.name}</span>
+                        <span className="mt-1 text-sm font-bold text-foreground leading-none">{item.value} cases</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Common Violations */}
