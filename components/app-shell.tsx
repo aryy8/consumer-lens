@@ -102,8 +102,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         className={cn(
                           'flex items-center gap-3 rounded-md border-l-2 py-2 pl-3 text-sm font-medium transition-colors',
                           active
-                            ? 'border-primary bg-sidebar-accent text-primary'
-                            : 'border-transparent text-slate hover:bg-sidebar-accent/55 hover:text-primary',
+                            ? 'border-[#2563EB] bg-[#DBEAFE] text-[#2563EB]'
+                            : 'border-transparent text-slate hover:bg-[#DBEAFE]/50 hover:text-[#2563EB]',
                         )}
                       >
                         <Icon className="size-[18px]" strokeWidth={2} />
@@ -188,17 +188,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   : pathname === item.href || pathname.startsWith(item.href + '/')
               const Icon = item.icon
               return (
-                <li key={item.href} className="flex-1">
+                <li key={item.href} className="flex-1 px-1">
                   <Link
                     href={item.href}
                     className={cn(
-                      'flex flex-col items-center justify-center gap-1.5 py-1.5 text-center transition-colors',
-                      active ? 'text-primary' : 'text-slate hover:text-primary',
+                      'flex flex-col items-center justify-center gap-1 py-1 text-center transition-all rounded-md',
+                      active
+                        ? 'bg-[#DBEAFE] text-[#2563EB]'
+                        : 'text-[#64748B] hover:bg-[#DBEAFE]/30 hover:text-[#2563EB]',
                     )}
                   >
-                    <Icon className="size-[20px]" strokeWidth={active ? 2.25 : 2} />
+                    <Icon className="size-[20px]" strokeWidth={active ? 2.5 : 2} />
                     <span className="text-[10px] font-semibold leading-none tracking-tight">
-                      {item.label === 'Product Repository' ? 'Repository' : item.label}
+                      {item.label === 'Product Repository'
+                        ? 'Repository'
+                        : item.label === 'New Inspection'
+                        ? 'Scan'
+                        : item.label.includes('Inspections')
+                        ? 'Inspections'
+                        : item.label}
                     </span>
                   </Link>
                 </li>
