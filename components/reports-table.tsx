@@ -1,77 +1,44 @@
 'use client'
 
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Download, FileText, FileDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Panel } from '@/components/section'
 import { ScoreBadge, StatusTag } from '@/components/status'
 import { SearchInput, FilterSelect } from '@/components/toolbar'
-import { getSavedReports, getInspectionById } from '@/lib/storage'
 import { generateInspectionPDF } from '@/lib/pdf-report'
-import { INSPECTIONS } from '@/lib/data'
-import type { ReportRecord } from '@/lib/types'
+import type { Inspection, ReportRecord } from '@/lib/types'
 
 export function ReportsTable({ reports }: { reports: ReportRecord[] }) {
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('all')
-  const [savedReports, setSavedReports] = useState<ReportRecord[]>([])
-
-  useEffect(() => {
-    const saved = getSavedReports()
-    setSavedReports(saved)
-  }, [])
-
-  const allReports = useMemo(() => {
-    return [...savedReports, ...reports]
-  }, [savedReports, reports])
 
   const filtered = useMemo(() => {
-    return allReports.filter((r) => {
+    return reports.filter((r) => {
       const q = query.trim().toLowerCase()
       const matchesQuery =
         !q || r.product.toLowerCase().includes(q) || r.id.toLowerCase().includes(q) || r.inspector.toLowerCase().includes(q)
       const matchesStatus = status === 'all' || r.status === status
       return matchesQuery && matchesStatus
     })
-  }, [allReports, query, status])
+  }, [reports, query, status])
 
-  const handleDownloadPDF = (r: ReportRecord) => {
-    let inspection = getInspectionById(r.inspectionId)
-    if (!inspection) {
-      const staticInsp = INSPECTIONS.find(i => i.id === r.inspectionId)
-      if (staticInsp) {
-        inspection = {
-          id: staticInsp.id,
-          productName: staticInsp.productName,
-          manufacturer: staticInsp.manufacturer,
-          category: staticInsp.category,
-          score: staticInsp.score,
-          status: staticInsp.status,
-          date: staticInsp.date,
-          state: staticInsp.state,
-          batchNumber: staticInsp.batchNumber,
-          inspectorName: staticInsp.inspectorName,
-          sourceType: 'image',
-          image: staticInsp.image,
-          productLink: null,
-          notes: '',
-          fields: staticInsp.fields.map(f => ({
-            key: f.key,
-            label: f.label,
-            rule: f.rule,
-            status: f.status,
-            severity: f.severity,
-            extracted: f.extracted,
-            explanation: f.explanation
-          }))
-        }
+  async function handleDownloadPDF(r: ReportRecord) {
+    try {
+      const res = await fetch(`/api/inspections/${r.inspectionId}`)
+      if (!res.ok) {
+        alert('Inspection details not found.')
+        return
       }
-    }
-    if (inspection) {
-      generateInspectionPDF(inspection)
-    } else {
-      alert('Inspection details not found.')
+      const data = (await res.json()) as { inspection: Inspection | null }
+      if (data.inspection) {
+        generateInspectionPDF(data.inspection)
+      } else {
+        alert('Inspection details not found.')
+      }
+    } catch {
+      alert('Could not load this report.')
     }
   }
 

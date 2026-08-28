@@ -1,6 +1,7 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
+import { getSessionUser } from '@/lib/session'
 import { Providers } from './providers'
 import './globals.css'
 
@@ -31,15 +32,16 @@ export const viewport: Viewport = {
   themeColor: '#12203c',
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const user = await getSessionUser()
   return (
     <html lang="en" className={`${inter.variable} bg-background`}>
       <body className="font-sans antialiased">
-        <Providers>{children}</Providers>
+        <Providers user={user}>{children}</Providers>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

@@ -29,11 +29,26 @@ export function UserManagement({ officers }: { officers: Officer[] }) {
     })
   }, [rows, query, role])
 
-  function toggleActive(id: string) {
-    setRows((prev) => prev.map((o) => (o.id === id ? { ...o, active: !o.active } : o)))
+  async function toggleActive(id: string) {
+    const target = rows.find((o) => o.id === id)
+    if (!target) return
+    const nextActive = !target.active
+    setRows((prev) => prev.map((o) => (o.id === id ? { ...o, active: nextActive } : o)))
+    try {
+      const res = await fetch(`/api/users/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: nextActive }),
+      })
+      if (!res.ok) {
+        setRows((prev) => prev.map((o) => (o.id === id ? { ...o, active: target.active } : o)))
+      }
+    } catch {
+      setRows((prev) => prev.map((o) => (o.id === id ? { ...o, active: target.active } : o)))
+    }
   }
 
-  function addOfficer(o: Officer) {
+  function handleCreated(o: Officer) {
     setRows((prev) => [o, ...prev])
     setAddOpen(false)
   }
@@ -173,33 +188,49 @@ export function UserManagement({ officers }: { officers: Officer[] }) {
         </div>
       </Panel>
 
-      {addOpen && <AddOfficerModal onClose={() => setAddOpen(false)} onAdd={addOfficer} />}
+      {addOpen && <AddOfficerModal onClose={() => setAddOpen(false)} onCreated={handleCreated} />}
     </div>
   )
 }
 
-function AddOfficerModal({ onClose, onAdd }: { onClose: () => void; onAdd: (o: Officer) => void }) {
+function AddOfficerModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void
+  onCreated: (o: Officer) => void
+}) {
   const [name, setName] = useState('')
   const [employeeId, setEmployeeId] = useState('')
+  const [password, setPassword] = useState('demo')
   const [role, setRole] = useState<Role>('inspector')
   const [district, setDistrict] = useState('')
   const [state, setState] = useState(STATES[0])
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!name || !employeeId) return
-    onAdd({
-      id: employeeId,
-      employeeId,
-      name,
-      role,
-      district: district || '—',
-      state,
-      active: true,
-      inspectionsThisMonth: 0,
-      avgScore: 0,
-      violationsFound: 0,
-    })
+    if (!name.trim() || !employeeId.trim()) return
+    setSubmitting(true)
+    setError('')
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, employeeId, password, role, district, state }),
+      })
+      const data = (await res.json()) as { ok: boolean; officer?: Officer; error?: string }
+      if (!res.ok || !data.ok || !data.officer) {
+        setError(data.error ?? 'Failed to add officer.')
+        setSubmitting(false)
+        return
+      }
+      onCreated(data.officer)
+    } catch {
+      setError('Could not reach the server.')
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -224,6 +255,9 @@ function AddOfficerModal({ onClose, onAdd }: { onClose: () => void; onAdd: (o: O
           <Field label="Employee ID">
             <input value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className={inputCls} placeholder="e.g. INS009" required />
           </Field>
+          <Field label="Password">
+            <input value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls} placeholder="default: demo" />
+          </Field>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Role">
               <select value={role} onChange={(e) => setRole(e.target.value as Role)} className={inputCls}>
@@ -243,11 +277,16 @@ function AddOfficerModal({ onClose, onAdd }: { onClose: () => void; onAdd: (o: O
           <Field label="District">
             <input value={district} onChange={(e) => setDistrict(e.target.value)} className={inputCls} placeholder="e.g. Pune" />
           </Field>
+          {error && (
+            <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>
+          )}
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit">Add Officer</Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? 'Adding…' : 'Add Officer'}
+            </Button>
           </div>
         </form>
       </div>

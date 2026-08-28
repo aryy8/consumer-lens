@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { ChevronDown, LogOut, Menu, ScanSearch, X } from 'lucide-react'
+import { ChevronDown, LogOut, Menu, X } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { navForRole } from '@/lib/nav'
+import type { AuthUser } from '@/lib/types'
 import { AppSidebar } from './app-sidebar'
 import { cn } from '@/lib/utils'
 
@@ -15,8 +16,8 @@ const ROLE_LABEL: Record<string, string> = {
   admin: 'Administrator',
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, logout } = useAuth()
+export function AppShell({ user, children }: { user: AuthUser; children: React.ReactNode }) {
+  const { logout } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -35,24 +36,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    if (!loading && !user) router.replace('/login')
-  }, [loading, user, router])
-
-  useEffect(() => {
     setMobileOpen(false)
     setMenuOpen(false)
   }, [pathname])
-
-  if (loading || !user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/40">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <ScanSearch className="size-4 animate-pulse text-primary" />
-          Loading workspace…
-        </div>
-      </div>
-    )
-  }
 
   const items = navForRole(user.role)
   const current = items.find((i) => {
@@ -161,8 +147,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     </p>
                   </div>
                   <button
-                    onClick={() => {
-                      logout()
+                    onClick={async () => {
+                      await logout()
                       router.replace('/login')
                     }}
                     className="flex w-full items-center gap-2 px-4 py-2.5 text-sm font-medium text-danger transition-colors hover:bg-danger-muted"

@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { geoMercator, geoPath } from 'd3-geo'
 import type { FeatureCollection, Feature, Geometry } from 'geojson'
-import { STATE_VOLUME } from '@/lib/data'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json() as Promise<FeatureCollection>)
 
@@ -19,13 +18,13 @@ function shade(t: number) {
   return `rgb(${c[0]}, ${c[1]}, ${c[2]})`
 }
 
-export function IndiaMap() {
+export function IndiaMap({ volume }: { volume: Record<string, number> }) {
   const { data, isLoading } = useSWR('/india-states.geojson', fetcher, {
     revalidateOnFocus: false,
   })
   const [hover, setHover] = useState<{ name: string; value: number; x: number; y: number } | null>(null)
 
-  const maxVolume = useMemo(() => Math.max(...Object.values(STATE_VOLUME), 1), [])
+  const maxVolume = useMemo(() => Math.max(...Object.values(volume), 1), [volume])
 
   const { paths, pathGen } = useMemo(() => {
     if (!data) return { paths: [], pathGen: null }
@@ -62,9 +61,9 @@ export function IndiaMap() {
         aria-label="Choropleth map of India showing inspection volume by state"
       >
         {paths.map((p) => {
-          const volume = STATE_VOLUME[p.name] ?? 0
-          const t = volume / maxVolume
-          const fill = volume > 0 ? shade(t) : 'var(--muted)'
+          const v = volume[p.name] ?? 0
+          const t = v / maxVolume
+          const fill = v > 0 ? shade(t) : 'var(--muted)'
           return (
             <path
               key={p.name}
@@ -74,7 +73,7 @@ export function IndiaMap() {
               strokeWidth={0.5}
               className="cursor-pointer transition-opacity hover:opacity-80"
               onMouseEnter={() =>
-                setHover({ name: p.name, value: volume, x: p.centroid[0], y: p.centroid[1] })
+                setHover({ name: p.name, value: v, x: p.centroid[0], y: p.centroid[1] })
               }
               onMouseLeave={() => setHover(null)}
             />

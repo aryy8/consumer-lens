@@ -34,17 +34,16 @@ export default function LoginPage() {
     if (!loading && user) router.replace('/dashboard')
   }, [loading, user, router])
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     setSubmitting(true)
-    const res = login(employeeId, password)
+    const res = await login(employeeId, password)
     if (!res.ok) {
       setError(res.error ?? 'Login failed.')
       setSubmitting(false)
-      return
     }
-    router.replace('/dashboard')
+    // On success, login() performs a full navigation to /dashboard.
   }
 
   function quickFill(id: string, pw: string, role: string) {

@@ -19,12 +19,10 @@ import {
   Save,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { CATEGORIES, STATES } from '@/lib/data'
+import { CATEGORIES, STATES, DECLARATION_TEMPLATE } from '@/lib/data'
 import { cn } from '@/lib/utils'
-import { saveInspection, saveReport } from '@/lib/storage'
 import { generateInspectionPDF } from '@/lib/pdf-report'
-import type { AnalysisResult, AnalysisField } from '@/lib/types'
-import type { SavedInspection } from '@/lib/storage'
+import type { AnalysisResult, AnalysisField, Inspection } from '@/lib/types'
 
 type Step = 'capture' | 'scanning' | 'result'
 
@@ -58,8 +56,9 @@ export function NewInspection() {
   const [isCameraOpen, setIsCameraOpen] = useState(false)
   const [isScraping, setIsScraping] = useState(false)
   const [scrapeError, setScrapeError] = useState<string | null>(null)
-  const [savedInspection, setSavedInspection] = useState<SavedInspection | null>(null)
+  const [savedInspection, setSavedInspection] = useState<Inspection | null>(null)
   const [isSaved, setIsSaved] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   // Clipboard Paste Support
   useEffect(() => {
@@ -947,20 +946,42 @@ export function NewInspection() {
                       Scan Another
                     </Button>
                     <Button
-                      onClick={() => {
+                      onClick={async () => {
                         if (!result) return
-                        const inspection = saveInspection(result, {
-                          batchNumber,
-                          state,
-                          notes,
-                          image,
-                          productLink: productLink || null,
-                        })
-                        saveReport(inspection)
-                        setSavedInspection(inspection)
-                        setIsSaved(true)
+                        setIsSaving(true)
+                        try {
+                          const res = await fetch('/api/inspections', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              productName: result.productName,
+                              manufacturer: result.manufacturer,
+                              category: result.category,
+                              score: result.score,
+                              status: result.status,
+                              sourceType: result.sourceType,
+                              fields: result.fields,
+                              batchNumber,
+                              state,
+                              notes,
+                              image,
+                              productLink: productLink || null,
+                            }),
+                          })
+                          const data = (await res.json()) as { ok: boolean; inspection?: Inspection; error?: string }
+                          if (!res.ok || !data.ok || !data.inspection) {
+                            alert(data.error ?? 'Could not save the inspection.')
+                            return
+                          }
+                          setSavedInspection(data.inspection)
+                          setIsSaved(true)
+                        } catch {
+                          alert('Could not save the inspection. Please try again.')
+                        } finally {
+                          setIsSaving(false)
+                        }
                       }}
-                      disabled={isSaved}
+                      disabled={isSaved || isSaving}
                       className={cn(
                         'w-[48%] rounded-md transition-all',
                         isSaved
@@ -970,6 +991,8 @@ export function NewInspection() {
                     >
                       {isSaved ? (
                         <><CheckCircle2 className="size-4" /> Saved</>
+                      ) : isSaving ? (
+                        <><Save className="size-4" /> Saving…</>
                       ) : (
                         <><Save className="size-4" /> Save Report</>
                       )}
@@ -979,7 +1002,7 @@ export function NewInspection() {
                     onClick={() => {
                       if (!result) return
                       // Use savedInspection if available, otherwise create a temporary one for PDF
-                      const inspection: SavedInspection = savedInspection ?? {
+                      const inspection: Inspection = savedInspection ?? {
                         id: 'DRAFT-' + Date.now(),
                         productName: result.productName,
                         manufacturer: result.manufacturer,
@@ -989,12 +1012,16 @@ export function NewInspection() {
                         date: new Date().toISOString().slice(0, 10),
                         state,
                         batchNumber,
+                        inspectorId: '',
                         inspectorName: 'Inspector',
+                        image: image ?? '/placeholder.svg',
                         sourceType: result.sourceType,
-                        image,
                         productLink: productLink || null,
                         notes,
-                        fields: result.fields,
+                        fields: result.fields.map((f, idx) => ({
+                          ...f,
+                          box: DECLARATION_TEMPLATE[idx]?.box ?? { x: 0, y: 0, w: 0, h: 0 },
+                        })),
                       }
                       generateInspectionPDF(inspection)
                     }}
