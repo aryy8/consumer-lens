@@ -16,8 +16,15 @@ export const metadata: Metadata = {
     'Government enforcement platform for Legal Metrology officers to scan packaged product labels, verify LMPC Rules 2011 compliance, and generate official inspection reports.',
   generator: 'v0.app',
   icons: {
-    icon: '/favicon.webp',
+    icon: [
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon.webp', type: 'image/webp' },
+    ],
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
   },
+  manifest: '/site.webmanifest',
 }
 
 export const viewport: Viewport = {
