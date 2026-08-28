@@ -49,10 +49,10 @@ function DashboardStatCard({
   trend: React.ReactNode
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-5">
-      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums text-foreground">{value}</p>
-      <div className="mt-1 text-xs text-muted-foreground">{trend}</div>
+    <div className="rounded-lg border border-border bg-card p-4 sm:p-5">
+      <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="mt-1.5 sm:mt-2 text-2xl sm:text-3xl font-semibold tracking-tight tabular-nums text-foreground">{value}</p>
+      <div className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground">{trend}</div>
     </div>
   )
 }
@@ -181,7 +181,7 @@ export function DashboardView() {
         </div>
 
         {/* Compact Stat Tiles */}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           <DashboardStatCard label="Inspections Today" value={todayCount} trend={<span className="text-success font-medium">↑ 100% vs yesterday</span>} />
           <DashboardStatCard label="Inspections This Month" value={thisMonthCount} trend={<span className="text-success font-medium">On track for target</span>} />
           <DashboardStatCard label="Violations Found" value={violationsCount} trend={<span className="text-danger font-medium">+12 cited recently</span>} />
@@ -349,7 +349,7 @@ export function DashboardView() {
     return (
       <div className="flex flex-col gap-6">
         {/* Stat Tiles */}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           <DashboardStatCard label="Team Inspections Today" value={teamTodayCount} trend={<span className="text-success font-medium">↑ 15% vs yesterday</span>} />
           <DashboardStatCard label="Inspections This Month" value={totalInspThisMonth} trend={<span className="text-muted-foreground">{team.length} active officers</span>} />
           <DashboardStatCard label="Violations Cited" value={totalViolations} trend={<span className="text-danger font-medium">+24 cited this week</span>} />
@@ -419,7 +419,7 @@ export function DashboardView() {
   return (
     <div className="flex flex-col gap-6">
       {/* Stat Tiles */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <DashboardStatCard label="Total Inspections" value={totalInsp.toLocaleString()} trend={<span className="text-muted-foreground">All jurisdictions · 6 mo</span>} />
         <DashboardStatCard label="Compliance Rate" value={`${latestRate}%`} trend={<span className="text-success font-medium">+2% vs last month</span>} />
         <DashboardStatCard label="Active Officers" value={`${activeOfficers}/${totalOfficers.length}`} trend={<span className="text-muted-foreground">Currently on-duty</span>} />

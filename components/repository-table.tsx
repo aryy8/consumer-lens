@@ -37,7 +37,61 @@ export function RepositoryTable({ products }: { products: ProductRecord[] }) {
       </div>
 
       <Panel className="overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Mobile Cards List View */}
+        <div className="block md:hidden divide-y divide-border">
+          {filtered.map((p) => {
+            const isOpen = open === p.id
+            return (
+              <div key={p.id} className="transition-colors hover:bg-muted/10">
+                <div
+                  onClick={() => setOpen(isOpen ? null : p.id)}
+                  className="flex items-center justify-between p-4 cursor-pointer"
+                >
+                  <div className="min-w-0 flex-1 pr-3">
+                    <p className="font-semibold text-sm text-foreground">{p.name}</p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {p.manufacturer}
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Last: {p.lastInspection} · {p.category}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <ScoreBadge score={p.score} />
+                    <ChevronDown className={cn('size-4 text-muted-foreground transition-transform', isOpen && 'rotate-180')} />
+                  </div>
+                </div>
+                {isOpen && (
+                  <div className="bg-muted/30 px-4 py-3 border-t border-border">
+                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Inspection history</p>
+                    <ol className="space-y-2">
+                      {p.history.map((h, i) => (
+                        <li key={i} className="flex flex-col gap-2 rounded-md border border-border bg-card p-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="tabular-nums text-xs text-muted-foreground">{h.date}</span>
+                            <span className="text-xs text-muted-foreground">{h.inspector}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <ScoreBadge score={h.score} />
+                            <StatusTag status={h.status} />
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {filtered.length === 0 && (
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              No products found.
+            </div>
+          )}
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">

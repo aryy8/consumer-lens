@@ -36,6 +36,45 @@ export function ReportsTable({ reports }: { reports: ReportRecord[] }) {
     })
   }, [allReports, query, status])
 
+  const handleDownloadPDF = (r: ReportRecord) => {
+    let inspection = getInspectionById(r.inspectionId)
+    if (!inspection) {
+      const staticInsp = INSPECTIONS.find(i => i.id === r.inspectionId)
+      if (staticInsp) {
+        inspection = {
+          id: staticInsp.id,
+          productName: staticInsp.productName,
+          manufacturer: staticInsp.manufacturer,
+          category: staticInsp.category,
+          score: staticInsp.score,
+          status: staticInsp.status,
+          date: staticInsp.date,
+          state: staticInsp.state,
+          batchNumber: staticInsp.batchNumber,
+          inspectorName: staticInsp.inspectorName,
+          sourceType: 'image',
+          image: staticInsp.image,
+          productLink: null,
+          notes: '',
+          fields: staticInsp.fields.map(f => ({
+            key: f.key,
+            label: f.label,
+            rule: f.rule,
+            status: f.status,
+            severity: f.severity,
+            extracted: f.extracted,
+            explanation: f.explanation
+          }))
+        }
+      }
+    }
+    if (inspection) {
+      generateInspectionPDF(inspection)
+    } else {
+      alert('Inspection details not found.')
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -55,7 +94,58 @@ export function ReportsTable({ reports }: { reports: ReportRecord[] }) {
       </div>
 
       <Panel className="overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Mobile Cards List View */}
+        <div className="block md:hidden divide-y divide-border">
+          {filtered.map((r) => (
+            <div
+              key={r.id}
+              className="p-4 flex flex-col gap-3 transition-colors hover:bg-muted/30"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <span className="inline-flex items-center gap-1 font-mono text-[10px] font-medium text-slate">
+                    <FileText className="size-3 text-muted-foreground" />
+                    {r.id}
+                  </span>
+                  <p className="mt-1 font-semibold text-sm text-foreground">{r.product}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {r.inspector} · {r.date}
+                  </p>
+                </div>
+                <div className="shrink-0">
+                  <ScoreBadge score={r.score} />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between border-t border-border/50 pt-2.5 mt-0.5">
+                <StatusTag status={r.status} />
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => handleDownloadPDF(r)}
+                    className="text-xs font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer"
+                    title="Download PDF Report"
+                  >
+                    <FileDown className="size-3.5" /> PDF
+                  </button>
+                  <Link
+                    href={`/inspections/${r.inspectionId}`}
+                    className="text-xs font-semibold text-primary"
+                  >
+                    Open
+                  </Link>
+                </div>
+              </div>
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              No reports found.
+            </div>
+          )}
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -85,44 +175,7 @@ export function ReportsTable({ reports }: { reports: ReportRecord[] }) {
                   <td className="px-5 py-3 text-right">
                     <div className="flex items-center justify-end gap-3">
                       <button
-                        onClick={() => {
-                          let inspection = getInspectionById(r.inspectionId)
-                          if (!inspection) {
-                            const staticInsp = INSPECTIONS.find(i => i.id === r.inspectionId)
-                            if (staticInsp) {
-                              inspection = {
-                                id: staticInsp.id,
-                                productName: staticInsp.productName,
-                                manufacturer: staticInsp.manufacturer,
-                                category: staticInsp.category,
-                                score: staticInsp.score,
-                                status: staticInsp.status,
-                                date: staticInsp.date,
-                                state: staticInsp.state,
-                                batchNumber: staticInsp.batchNumber,
-                                inspectorName: staticInsp.inspectorName,
-                                sourceType: 'image',
-                                image: staticInsp.image,
-                                productLink: null,
-                                notes: '',
-                                fields: staticInsp.fields.map(f => ({
-                                  key: f.key,
-                                  label: f.label,
-                                  rule: f.rule,
-                                  status: f.status,
-                                  severity: f.severity,
-                                  extracted: f.extracted,
-                                  explanation: f.explanation
-                                }))
-                              }
-                            }
-                          }
-                          if (inspection) {
-                            generateInspectionPDF(inspection)
-                          } else {
-                            alert('Inspection details not found.')
-                          }
-                        }}
+                        onClick={() => handleDownloadPDF(r)}
                         className="text-xs font-medium text-muted-foreground hover:text-foreground md:opacity-0 transition-opacity md:group-hover:opacity-100 flex items-center gap-1 cursor-pointer"
                         title="Download PDF Report"
                       >

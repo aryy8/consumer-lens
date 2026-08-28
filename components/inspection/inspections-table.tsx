@@ -86,7 +86,39 @@ export function InspectionsTable({ inspections }: { inspections: Inspection[] })
       </div>
 
       <Panel className="overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Mobile Cards List View */}
+        <div className="block md:hidden divide-y divide-border">
+          {filtered.map((i) => (
+            <Link
+              key={i.id}
+              href={`/inspections/${i.id}`}
+              className="flex items-center justify-between p-4 transition-colors hover:bg-muted/30"
+            >
+              <div className="flex items-center gap-3 min-w-0 flex-1 pr-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={i.image || '/placeholder.svg'} alt="" className="size-10 shrink-0 rounded object-cover" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-foreground">{i.productName}</p>
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    {i.category} · {i.date}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <ScoreBadge score={i.score} />
+                <ChevronRight className="size-4 text-muted-foreground" />
+              </div>
+            </Link>
+          ))}
+          {filtered.length === 0 && (
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              No inspections match your filters.
+            </div>
+          )}
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">

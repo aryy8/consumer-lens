@@ -58,7 +58,65 @@ export function UserManagement({ officers }: { officers: Officer[] }) {
       </div>
 
       <Panel className="overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Mobile Cards List View */}
+        <div className="block md:hidden divide-y divide-border">
+          {filtered.map((o) => (
+            <div
+              key={o.id}
+              className="p-4 flex flex-col gap-3 transition-colors hover:bg-muted/30"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-sm text-foreground">{o.name}</p>
+                  <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">{o.employeeId}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {o.district} · {o.state}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <RoleTag role={o.role} />
+                  <button
+                    type="button"
+                    aria-label={`Edit ${o.name}`}
+                    className="text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    <Pencil className="size-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between border-t border-border/50 pt-2.5 mt-0.5">
+                <span className="text-xs text-muted-foreground font-medium">Status</span>
+                <button
+                  type="button"
+                  onClick={() => toggleActive(o.id)}
+                  role="switch"
+                  aria-checked={o.active}
+                  aria-label={`Toggle ${o.name} active status`}
+                  className={cn(
+                    'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
+                    o.active ? 'bg-success' : 'bg-muted-foreground/30',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'inline-block size-4 rounded-full bg-card shadow-sm transition-transform',
+                      o.active ? 'translate-x-4' : 'translate-x-0.5',
+                    )}
+                  />
+                </button>
+              </div>
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              No officers found.
+            </div>
+          )}
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
