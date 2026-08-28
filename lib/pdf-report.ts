@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf'
-import type { SavedInspection } from './storage'
+import type { Inspection } from './types'
 
 // Colors
 const NAVY = [18, 32, 60] as const
@@ -25,7 +25,7 @@ function statusColor(status: string): RGB {
   return RED
 }
 
-export function generateInspectionPDF(inspection: SavedInspection): void {
+export function generateInspectionPDF(inspection: Inspection): void {
   const doc = new jsPDF('p', 'mm', 'a4')
   const pageWidth = 210
   const margin = 18
@@ -70,7 +70,7 @@ export function generateInspectionPDF(inspection: SavedInspection): void {
   // Score
   doc.setFontSize(36)
   doc.setFont('helvetica', 'bold')
-  const sc = isCompliant ? GREEN : inspection.score >= 60 ? AMBER : RED
+  const sc: RGB = isCompliant ? GREEN : inspection.score >= 60 ? AMBER : RED
   doc.setTextColor(...sc)
   doc.text(String(inspection.score), margin + 8, y + 20)
 

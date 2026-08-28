@@ -1,5 +1,13 @@
 export type Role = 'inspector' | 'supervisor' | 'admin'
 
+export interface AuthUser {
+  employeeId: string
+  name: string
+  role: Role
+  district: string
+  state: string
+}
+
 export type ComplianceStatus = 'compliant' | 'non-compliant' | 'pending'
 
 export type ViolationSeverity = 'critical' | 'major' | 'minor'
@@ -44,6 +52,9 @@ export interface Inspection {
   inspectorId: string
   inspectorName: string
   image: string
+  sourceType: 'image' | 'url'
+  productLink: string | null
+  notes: string
   fields: DeclarationField[]
 }
 

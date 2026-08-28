@@ -1,3 +1,6 @@
+allowBuilds:
+  core-js: false
+  esbuild: true
 minimumReleaseAgeExclude:
   - '@next/*'
   - next

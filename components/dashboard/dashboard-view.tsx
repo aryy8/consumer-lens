@@ -25,14 +25,8 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
-import {
-  COMPLIANCE_TREND,
-  INSPECTIONS,
-  INSPECTIONS_OVER_TIME,
-  OFFICERS,
-  COMMON_VIOLATIONS,
-  STATE_VOLUME,
-} from '@/lib/data'
+import type { DashboardData } from '@/lib/queries'
+import type { Inspection } from '@/lib/types'
 import { Panel, PanelHeader } from '@/components/section'
 import { ScoreBadge, StatusTag } from '@/components/status'
 import { buttonVariants } from '@/components/ui/button'
@@ -57,7 +51,7 @@ function DashboardStatCard({
   )
 }
 
-function RecentInspections({ items }: { items: typeof INSPECTIONS }) {
+function RecentInspections({ items }: { items: Inspection[] }) {
   return (
     <Panel>
       <PanelHeader
@@ -104,7 +98,7 @@ const tooltipStyle = {
   color: 'var(--foreground)',
 }
 
-export function DashboardView() {
+export function DashboardView({ data }: { data: DashboardData }) {
   const { user } = useAuth()
   if (!user) return null
 
@@ -112,11 +106,10 @@ export function DashboardView() {
 
   // INSPECTOR ROLE
   if (user.role === 'inspector') {
-    const mine = INSPECTIONS.filter((i) => i.inspectorId === user.employeeId)
-    const officer = OFFICERS.find((o) => o.id === user.employeeId)
-    
-    // Inspections today (using latest date '2026-08-26' as "today")
-    const todayStr = '2026-08-26'
+    const mine = data.inspections.filter((i) => i.inspectorId === user.employeeId)
+    const officer = data.officers.find((o) => o.id === user.employeeId)
+
+    const todayStr = new Date().toISOString().slice(0, 10)
     const todayCount = mine.filter((i) => i.date === todayStr).length
     const thisMonthCount = officer?.inspectionsThisMonth ?? mine.length
     const violationsCount = officer?.violationsFound ?? mine.reduce((acc, i) => acc + i.fields.filter(f => f.status !== 'compliant').length, 0)
@@ -336,7 +329,7 @@ export function DashboardView() {
 
   // SUPERVISOR ROLE
   if (user.role === 'supervisor') {
-    const team = OFFICERS.filter((o) => o.role === 'inspector')
+    const team = data.officers.filter((o) => o.role === 'inspector')
     
     // Compute team metrics
     const totalInspThisMonth = team.reduce((a, o) => a + o.inspectionsThisMonth, 0)
@@ -404,17 +397,17 @@ export function DashboardView() {
           </div>
         </Panel>
 
-        <RecentInspections items={INSPECTIONS} />
+        <RecentInspections items={data.inspections} />
       </div>
     )
   }
 
   // ADMIN ROLE
-  const totalInsp = INSPECTIONS_OVER_TIME.reduce((a, m) => a + m.inspections, 0)
-  const latestRate = COMPLIANCE_TREND[COMPLIANCE_TREND.length - 1].rate
-  const totalOfficers = OFFICERS.filter((o) => o.role !== 'admin')
+  const totalInsp = data.inspectionsOverTime.reduce((a, m) => a + m.inspections, 0)
+  const latestRate = data.complianceTrend[data.complianceTrend.length - 1]?.rate ?? 0
+  const totalOfficers = data.officers.filter((o) => o.role !== 'admin')
   const activeOfficers = totalOfficers.filter((o) => o.active).length
-  const statesCoveredCount = Object.keys(STATE_VOLUME).length
+  const statesCoveredCount = Object.keys(data.stateVolume).length
 
   return (
     <div className="flex flex-col gap-6">
@@ -432,7 +425,7 @@ export function DashboardView() {
           <PanelHeader title="Inspections Over Time" description="Monthly enforcement activity and violations detected" />
           <div className="p-4">
             <ResponsiveContainer width="100%" height={260}>
-              <AreaChart data={INSPECTIONS_OVER_TIME}>
+              <AreaChart data={data.inspectionsOverTime}>
                 <defs>
                   <linearGradient id="rateFill" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.25} />
@@ -454,13 +447,13 @@ export function DashboardView() {
           <PanelHeader title="Top Violated Provisions" description="Most frequently breached rules under LMPC 2011" />
           <div className="p-4">
             <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={COMMON_VIOLATIONS} layout="vertical" margin={{ left: 8, right: 8 }}>
+              <BarChart data={data.commonViolations} layout="vertical" margin={{ left: 8, right: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
                 <XAxis type="number" tickLine={false} axisLine={false} fontSize={12} stroke="var(--muted-foreground)" />
                 <YAxis type="category" dataKey="rule" tickLine={false} axisLine={false} fontSize={12} stroke="var(--muted-foreground)" width={70} />
                 <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'var(--muted)' }} />
                 <Bar dataKey="count" name="Violations" radius={[0, 3, 3, 0]}>
-                  {COMMON_VIOLATIONS.map((_, i) => (
+                  {data.commonViolations.map((_, i) => (
                     <Cell key={i} fill={i === 0 ? 'var(--primary)' : 'var(--slate)'} />
                   ))}
                 </Bar>
@@ -474,11 +467,11 @@ export function DashboardView() {
       <Panel>
         <PanelHeader title="Geographic Distribution" description="State-level metrology enforcement intensity (Inspections volume)" />
         <div className="p-6">
-          <IndiaMap />
+          <IndiaMap volume={data.stateVolume} />
         </div>
       </Panel>
 
-      <RecentInspections items={INSPECTIONS} />
+      <RecentInspections items={data.inspections} />
     </div>
   )
 }

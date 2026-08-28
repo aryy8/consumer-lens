@@ -61,32 +61,7 @@ export function InspectionDetail({ inspection }: { inspection: Inspection }) {
             variant="outline"
             className="mt-4 w-full gap-1.5"
             onClick={() => {
-              const savedFormat = {
-                id: inspection.id,
-                productName: inspection.productName,
-                manufacturer: inspection.manufacturer,
-                category: inspection.category,
-                score: inspection.score,
-                status: inspection.status,
-                date: inspection.date,
-                state: inspection.state,
-                batchNumber: inspection.batchNumber,
-                inspectorName: inspection.inspectorName,
-                sourceType: (inspection as any).sourceType || 'image',
-                image: inspection.image || null,
-                productLink: (inspection as any).productLink || null,
-                notes: (inspection as any).notes || '',
-                fields: inspection.fields.map(f => ({
-                  key: f.key,
-                  label: f.label,
-                  rule: f.rule,
-                  status: f.status,
-                  severity: f.severity,
-                  extracted: f.extracted,
-                  explanation: f.explanation
-                }))
-              }
-              generateInspectionPDF(savedFormat)
+              generateInspectionPDF(inspection)
             }}
           >
             <Download className="size-4" /> Export PDF report

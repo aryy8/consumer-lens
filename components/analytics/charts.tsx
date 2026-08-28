@@ -14,7 +14,6 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { COMMON_VIOLATIONS, COMPLIANCE_TREND, INSPECTIONS_OVER_TIME } from '@/lib/data'
 
 const AXIS = { fontSize: 12, fill: 'var(--muted-foreground)' }
 const GRID = 'var(--border)'
@@ -33,10 +32,14 @@ function ChartTooltip({ active, payload, label }: any) {
   )
 }
 
-export function InspectionsLineChart() {
+export function InspectionsLineChart({
+  data,
+}: {
+  data: { month: string; inspections: number; violations: number }[]
+}) {
   return (
     <ResponsiveContainer width="100%" height={260}>
-      <AreaChart data={INSPECTIONS_OVER_TIME} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+      <AreaChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
         <defs>
           <linearGradient id="gradInsp" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.2} />
@@ -68,11 +71,15 @@ export function InspectionsLineChart() {
   )
 }
 
-export function ViolationsBarChart() {
+export function ViolationsBarChart({
+  data,
+}: {
+  data: { rule: string; label: string; count: number }[]
+}) {
   return (
     <ResponsiveContainer width="100%" height={260}>
       <BarChart
-        data={COMMON_VIOLATIONS}
+        data={data}
         layout="vertical"
         margin={{ top: 4, right: 16, left: 8, bottom: 0 }}
       >
@@ -88,7 +95,7 @@ export function ViolationsBarChart() {
         />
         <Tooltip content={<ChartTooltip />} cursor={{ fill: 'var(--muted)' }} />
         <Bar dataKey="count" name="Violations" radius={[0, 3, 3, 0]}>
-          {COMMON_VIOLATIONS.map((_, i) => (
+          {data.map((_, i) => (
             <Cell key={i} fill={i === 0 ? 'var(--primary)' : 'var(--slate)'} />
           ))}
         </Bar>
@@ -97,10 +104,14 @@ export function ViolationsBarChart() {
   )
 }
 
-export function ComplianceTrendChart() {
+export function ComplianceTrendChart({
+  data,
+}: {
+  data: { month: string; rate: number }[]
+}) {
   return (
     <ResponsiveContainer width="100%" height={260}>
-      <LineChart data={COMPLIANCE_TREND} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+      <LineChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
         <CartesianGrid vertical={false} stroke={GRID} />
         <XAxis dataKey="month" tick={AXIS} tickLine={false} axisLine={{ stroke: GRID }} />
         <YAxis
@@ -108,7 +119,7 @@ export function ComplianceTrendChart() {
           tickLine={false}
           axisLine={false}
           width={40}
-          domain={[60, 90]}
+          domain={[0, 100]}
           tickFormatter={(v) => `${v}%`}
         />
         <Tooltip content={<ChartTooltip />} />

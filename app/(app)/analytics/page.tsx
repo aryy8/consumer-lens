@@ -1,3 +1,5 @@
+import { requireAdmin } from '@/lib/session'
+import { getAnalyticsData } from '@/lib/queries'
 import { PageIntro, Panel, PanelHeader } from '@/components/section'
 import {
   ComplianceTrendChart,
@@ -6,7 +8,10 @@ import {
 } from '@/components/analytics/charts'
 import { IndiaMap } from '@/components/analytics/india-map'
 
-export default function AnalyticsPage() {
+export default async function AnalyticsPage() {
+  await requireAdmin()
+  const data = await getAnalyticsData()
+
   return (
     <div>
       <PageIntro
@@ -18,28 +23,28 @@ export default function AnalyticsPage() {
         <Panel>
           <PanelHeader title="Inspections over time" description="Monthly inspections and violations detected" />
           <div className="p-4">
-            <InspectionsLineChart />
+            <InspectionsLineChart data={data.overTime} />
           </div>
         </Panel>
 
         <Panel>
           <PanelHeader title="Top violated provisions" description="Most frequently breached rules under LMPC 2011" />
           <div className="p-4">
-            <ViolationsBarChart />
+            <ViolationsBarChart data={data.commonViolations} />
           </div>
         </Panel>
 
         <Panel>
           <PanelHeader title="Compliance rate trend" description="Share of inspections passing all declarations" />
           <div className="p-4">
-            <ComplianceTrendChart />
+            <ComplianceTrendChart data={data.complianceTrend} />
           </div>
         </Panel>
 
         <Panel>
           <PanelHeader title="Geographic distribution" description="Inspection volume by state — navy (low) to amber (high)" />
           <div className="p-4">
-            <IndiaMap />
+            <IndiaMap volume={data.stateVolume} />
           </div>
         </Panel>
       </div>

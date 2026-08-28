@@ -1,68 +1,60 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
-import type { Role } from './types'
+import { createContext, useCallback, useContext, useState } from 'react'
+import type { AuthUser, Role } from './types'
 
-export interface AuthUser {
-  employeeId: string
-  name: string
-  role: Role
-  district: string
-  state: string
-}
-
-interface Credential extends AuthUser {
-  password: string
-}
-
-const CREDENTIALS: Credential[] = [
-  { employeeId: 'INS001', password: 'demo', name: 'Rajesh Kumar', role: 'inspector', district: 'Pune', state: 'Maharashtra' },
-  { employeeId: 'SUP001', password: 'demo', name: 'Vikram Menon', role: 'supervisor', district: 'Pune', state: 'Maharashtra' },
-  { employeeId: 'ADM001', password: 'demo', name: 'Anjali Sharma', role: 'admin', district: 'New Delhi', state: 'Delhi' },
-]
-
-const STORAGE_KEY = 'consumer-lens-auth'
+type LoginResult = { ok: boolean; error?: string }
 
 interface AuthContextValue {
   user: AuthUser | null
   loading: boolean
-  login: (employeeId: string, password: string) => { ok: boolean; error?: string }
-  logout: () => void
+  login: (employeeId: string, password: string) => Promise<LoginResult>
+  logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null)
-  const [loading, setLoading] = useState(true)
+export function AuthProvider({
+  initialUser,
+  children,
+}: {
+  initialUser: AuthUser | null
+  children: React.ReactNode
+}) {
+  const [user, setUser] = useState<AuthUser | null>(initialUser)
 
-  useEffect(() => {
+  const login: AuthContextValue['login'] = useCallback(async (employeeId, password) => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) setUser(JSON.parse(raw))
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeId, password }),
+      })
+      const data: { ok: boolean; user?: AuthUser; error?: string } = await res.json()
+      if (!res.ok || !data.ok || !data.user) {
+        return { ok: false, error: data.error ?? 'Login failed.' }
+      }
+      // Hard navigation so the server components re-run with the new session cookie.
+      window.location.href = '/dashboard'
+      return { ok: true }
     } catch {
-      /* ignore */
+      return { ok: false, error: 'Could not reach the server. Please try again.' }
     }
-    setLoading(false)
   }, [])
 
-  const login: AuthContextValue['login'] = (employeeId, password) => {
-    const match = CREDENTIALS.find(
-      (c) => c.employeeId.toLowerCase() === employeeId.trim().toLowerCase() && c.password === password,
-    )
-    if (!match) return { ok: false, error: 'Invalid Employee ID or password.' }
-    const { password: _pw, ...authUser } = match
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser))
-    setUser(authUser)
-    return { ok: true }
-  }
+  const logout: AuthContextValue['logout'] = useCallback(async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+    } finally {
+      setUser(null)
+    }
+  }, [])
 
-  const logout = () => {
-    localStorage.removeItem(STORAGE_KEY)
-    setUser(null)
-  }
-
-  return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={{ user, loading: false, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {
