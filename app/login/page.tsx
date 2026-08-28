@@ -77,8 +77,8 @@ export default function LoginPage() {
 
         {/* Top Branding */}
         <div className="flex items-center gap-3 relative z-10">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-[#D97706] text-white shadow-sm shadow-amber-500/20">
-            <ScanSearch className="size-5" strokeWidth={2.25} />
+          <div className="flex size-10 items-center justify-center rounded-xl bg-transparent overflow-hidden shadow-sm">
+            <img src="/favicon.png" alt="Logo" className="size-full object-cover" />
           </div>
           <div className="flex flex-col leading-tight">
             <span className="text-[17px] font-bold tracking-tight text-slate-900">

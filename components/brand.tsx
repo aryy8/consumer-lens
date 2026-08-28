@@ -18,12 +18,12 @@ export function Brand({ className, markClassName, wordClassName, subtitle, size 
     <div className={cn('flex items-center gap-2.5', className)}>
       <div
         className={cn(
-          'flex shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground',
+          'flex shrink-0 items-center justify-center rounded-md bg-transparent overflow-hidden',
           dims,
           markClassName,
         )}
       >
-        <ScanSearch className={icon} strokeWidth={2.25} />
+        <img src="/favicon.png" alt="Logo" className="size-full object-cover" />
       </div>
       <div className="flex flex-col leading-none">
         <span className={cn('font-semibold tracking-tight', text, wordClassName)}>

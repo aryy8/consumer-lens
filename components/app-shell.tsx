@@ -78,8 +78,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="absolute left-0 top-0 flex h-full w-64 flex-col bg-sidebar text-sidebar-foreground">
             <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
               <div className="flex items-center gap-2">
-                <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                  <ScanSearch className="size-5" strokeWidth={2.25} />
+                <div className="flex size-8 items-center justify-center rounded-md bg-transparent overflow-hidden">
+                  <img src="/favicon.png" alt="Logo" className="size-full object-cover" />
                 </div>
                 <span className="text-sm font-semibold text-[#12203c]">Consumer Lens</span>
               </div>
