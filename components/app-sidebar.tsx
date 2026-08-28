@@ -35,7 +35,7 @@ export function AppSidebar({ collapsed, toggleCollapsed }: AppSidebarProps) {
         <div className="group/logo relative size-8 shrink-0">
           {/* App Icon (Logo) */}
           <div className="flex size-8 items-center justify-center rounded-md bg-transparent overflow-hidden transition-opacity duration-200 group-hover/logo:opacity-0">
-            <img src="/favicon.png" alt="Logo" className="size-full object-cover" />
+            <img src="/favicon.webp" alt="Logo" className="size-full object-cover" />
           </div>
           {/* Collapse Button Overlay */}
           <button

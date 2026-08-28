@@ -23,7 +23,7 @@ export function Brand({ className, markClassName, wordClassName, subtitle, size 
           markClassName,
         )}
       >
-        <img src="/favicon.png" alt="Logo" className="size-full object-cover" />
+        <img src="/favicon.webp" alt="Logo" className="size-full object-cover" />
       </div>
       <div className="flex flex-col leading-none">
         <span className={cn('font-semibold tracking-tight', text, wordClassName)}>
