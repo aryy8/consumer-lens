@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { inspections, reports, users } from '@/drizzle/schema'
 import type { InspectionRow, UserRow } from '@/drizzle/schema'
 import { db } from './db'
@@ -113,14 +113,24 @@ function fieldCount(fields: unknown): number {
   return arr.filter((f) => f.status !== 'compliant').length
 }
 
+type SummaryInspRow = {
+  inspectorId?: string | null
+  date: string
+  score?: number
+  status?: string
+  state?: string
+  fields?: unknown
+}
+
 /** Build Officer[] (identity + stats computed from inspections). id = employeeId. */
-function computeOfficers(userRows: UserRow[], inspRows: { insp: InspectionRow }[]): Officer[] {
+function computeOfficers(userRows: UserRow[], inspRows: SummaryInspRow[]): Officer[] {
   const currentMonth = new Date().toISOString().slice(0, 7)
   const byUser = new Map<string, { countMonth: number; scores: number[]; violations: number }>()
-  for (const { insp } of inspRows) {
+  for (const insp of inspRows) {
+    if (!insp.inspectorId) continue
     const g = byUser.get(insp.inspectorId) ?? { countMonth: 0, scores: [], violations: 0 }
     if (insp.date.slice(0, 7) === currentMonth) g.countMonth++
-    g.scores.push(insp.score)
+    if (typeof insp.score === 'number') g.scores.push(insp.score)
     g.violations += fieldCount(insp.fields)
     byUser.set(insp.inspectorId, g)
   }
@@ -141,15 +151,15 @@ function computeOfficers(userRows: UserRow[], inspRows: { insp: InspectionRow }[
   })
 }
 
-/** Aggregate analytics from raw inspection rows (JS-side; cheap at demo scale). */
-function aggregateAnalytics(inspRows: { insp: InspectionRow }[]): AnalyticsData {
+/** Aggregate analytics from summary inspection rows. */
+function aggregateAnalytics(inspRows: SummaryInspRow[]): AnalyticsData {
   const keys = lastNMonthKeys(MONTH_KEYS)
   const byMonth = new Map(keys.map((k) => [k, { inspections: 0, violations: 0, compliant: 0 }]))
   const byRule = new Map<string, { rule: string; label: string; count: number }>()
   const byState = new Map<string, number>()
   let totalInspections = 0
 
-  for (const { insp } of inspRows) {
+  for (const insp of inspRows) {
     totalInspections++
     const mk = insp.date.slice(0, 7)
     const m = byMonth.get(mk)
@@ -157,7 +167,9 @@ function aggregateAnalytics(inspRows: { insp: InspectionRow }[]): AnalyticsData 
       m.inspections++
       if (insp.status === 'compliant') m.compliant++
     }
-    byState.set(insp.state, (byState.get(insp.state) ?? 0) + 1)
+    if (insp.state) {
+      byState.set(insp.state, (byState.get(insp.state) ?? 0) + 1)
+    }
     for (const f of (insp.fields as AnalysisField[]) ?? []) {
       if (f.status !== 'compliant') {
         if (m) m.violations++
@@ -184,13 +196,6 @@ function aggregateAnalytics(inspRows: { insp: InspectionRow }[]): AnalyticsData 
   }
 }
 
-async function allInspectionRows() {
-  return db
-    .select({ insp: inspections, inspectorName: users.name, employeeId: users.employeeId })
-    .from(inspections)
-    .leftJoin(users, eq(inspections.inspectorId, users.id))
-}
-
 // ---------------------------------------------------------------------------
 // Users / officers
 // ---------------------------------------------------------------------------
@@ -198,7 +203,12 @@ async function allInspectionRows() {
 export async function getUsers(): Promise<Officer[]> {
   const [userRows, inspRows] = await Promise.all([
     db.select().from(users),
-    db.select({ insp: inspections }).from(inspections),
+    db.select({
+      inspectorId: inspections.inspectorId,
+      date: inspections.date,
+      score: inspections.score,
+      fields: inspections.fields,
+    }).from(inspections),
   ])
   return computeOfficers(userRows, inspRows)
 }
@@ -208,40 +218,122 @@ export async function getUsers(): Promise<Officer[]> {
 // ---------------------------------------------------------------------------
 
 export async function getInspectionsForUser(user: AuthUser): Promise<Inspection[]> {
-  const rows = await allInspectionRows()
-  const inspections = rows.map(mapInspection)
-  if (user.role === 'admin') return inspections
-  const me = await resolveUser(user.employeeId)
-  if (!me) return []
-  if (user.role === 'inspector') {
-    return inspections.filter((i) => i.inspectorId === me.employeeId)
+  const query = db
+    .select({
+      id: inspections.id,
+      productName: inspections.productName,
+      manufacturer: inspections.manufacturer,
+      category: inspections.category,
+      score: inspections.score,
+      status: inspections.status,
+      date: inspections.date,
+      state: inspections.state,
+      batchNumber: inspections.batchNumber,
+      inspectorId: users.employeeId,
+      inspectorName: users.name,
+      image: inspections.image,
+      sourceType: inspections.sourceType,
+      productLink: inspections.productLink,
+      notes: inspections.notes,
+      fields: inspections.fields,
+    })
+    .from(inspections)
+    .leftJoin(users, eq(inspections.inspectorId, users.id))
+    .orderBy(desc(inspections.date), desc(inspections.createdAt))
+
+  let rows
+  if (user.role === 'admin') {
+    rows = await query
+  } else if (user.role === 'inspector') {
+    rows = await query.where(eq(users.employeeId, user.employeeId))
+  } else {
+    // supervisor: inspections in their jurisdiction/state by inspectors
+    rows = await query.where(and(eq(users.role, 'inspector'), eq(users.state, user.state)))
   }
-  // supervisor: inspections by inspector-role officers in their state
-  const team = new Set(
-    (await db
-      .select({ employeeId: users.employeeId })
-      .from(users)
-      .where(and(eq(users.role, 'inspector'), eq(users.state, me.state)))).map((r) => r.employeeId),
-  )
-  return inspections.filter((i) => team.has(i.inspectorId))
+
+  return rows.map((r) => ({
+    id: r.id,
+    productName: r.productName,
+    manufacturer: r.manufacturer,
+    category: r.category,
+    score: r.score,
+    status: r.status as ComplianceStatus,
+    date: r.date,
+    state: r.state,
+    batchNumber: r.batchNumber,
+    inspectorId: r.inspectorId ?? '',
+    inspectorName: r.inspectorName ?? 'Unknown',
+    image: r.image ?? '/placeholder.svg',
+    sourceType: (r.sourceType as 'image' | 'url') ?? 'image',
+    productLink: r.productLink,
+    notes: r.notes,
+    fields: ((r.fields as AnalysisField[]) ?? []).map((f, idx) => ({
+      ...f,
+      box: DECLARATION_TEMPLATE[idx]?.box ?? { x: 0, y: 0, w: 0, h: 0 },
+    })),
+  }))
 }
 
 export async function getInspectionById(id: string): Promise<Inspection | null> {
   const rows = await db
-    .select({ insp: inspections, inspectorName: users.name, employeeId: users.employeeId })
+    .select({
+      id: inspections.id,
+      productName: inspections.productName,
+      manufacturer: inspections.manufacturer,
+      category: inspections.category,
+      score: inspections.score,
+      status: inspections.status,
+      date: inspections.date,
+      state: inspections.state,
+      batchNumber: inspections.batchNumber,
+      inspectorId: users.employeeId,
+      inspectorName: users.name,
+      image: inspections.image,
+      sourceType: inspections.sourceType,
+      productLink: inspections.productLink,
+      notes: inspections.notes,
+      fields: inspections.fields,
+    })
     .from(inspections)
     .leftJoin(users, eq(inspections.inspectorId, users.id))
     .where(eq(inspections.id, id))
+    .limit(1)
+
   if (!rows.length) return null
-  return mapInspection(rows[0])
+  const r = rows[0]
+  return {
+    id: r.id,
+    productName: r.productName,
+    manufacturer: r.manufacturer,
+    category: r.category,
+    score: r.score,
+    status: r.status as ComplianceStatus,
+    date: r.date,
+    state: r.state,
+    batchNumber: r.batchNumber,
+    inspectorId: r.inspectorId ?? '',
+    inspectorName: r.inspectorName ?? 'Unknown',
+    image: r.image ?? '/placeholder.svg',
+    sourceType: (r.sourceType as 'image' | 'url') ?? 'image',
+    productLink: r.productLink,
+    notes: r.notes,
+    fields: ((r.fields as AnalysisField[]) ?? []).map((f, idx) => ({
+      ...f,
+      box: DECLARATION_TEMPLATE[idx]?.box ?? { x: 0, y: 0, w: 0, h: 0 },
+    })),
+  }
 }
 
 export async function createInspection(
   user: AuthUser,
   payload: NewInspectionPayload,
 ): Promise<Inspection> {
-  const me = await resolveUser(user.employeeId)
-  if (!me) throw new Error('Session user not found.')
+  let userId = user.id
+  if (!userId) {
+    const me = await resolveUser(user.employeeId)
+    if (!me) throw new Error('Session user not found.')
+    userId = me.id
+  }
   const date = new Date().toISOString().slice(0, 10)
 
   const [insp] = await db
@@ -255,7 +347,7 @@ export async function createInspection(
       date,
       state: payload.state,
       batchNumber: payload.batchNumber,
-      inspectorId: me.id,
+      inspectorId: userId,
       sourceType: payload.sourceType,
       image: payload.image,
       productLink: payload.productLink,
@@ -273,7 +365,62 @@ export async function createInspection(
     status: payload.status,
   })
 
-  return mapInspection({ insp, inspectorName: user.name, employeeId: user.employeeId })
+  return {
+    id: insp.id,
+    productName: insp.productName,
+    manufacturer: insp.manufacturer,
+    category: insp.category,
+    score: insp.score,
+    status: insp.status as ComplianceStatus,
+    date: insp.date,
+    state: insp.state,
+    batchNumber: insp.batchNumber,
+    inspectorId: user.employeeId,
+    inspectorName: user.name,
+    image: insp.image ?? '/placeholder.svg',
+    sourceType: (insp.sourceType as 'image' | 'url') ?? 'image',
+    productLink: insp.productLink,
+    notes: insp.notes,
+    fields: ((insp.fields as AnalysisField[]) ?? []).map((f, idx) => ({
+      ...f,
+      box: DECLARATION_TEMPLATE[idx]?.box ?? { x: 0, y: 0, w: 0, h: 0 },
+    })),
+  }
+}
+
+export async function deleteInspection(
+  id: string,
+  user: AuthUser,
+): Promise<{ ok: boolean; error?: string }> {
+  // 1. Fetch inspection to verify existence and permissions
+  const [existing] = await db
+    .select({
+      id: inspections.id,
+      state: inspections.state,
+      inspectorEmployeeId: users.employeeId,
+    })
+    .from(inspections)
+    .leftJoin(users, eq(inspections.inspectorId, users.id))
+    .where(eq(inspections.id, id))
+    .limit(1)
+
+  if (!existing) {
+    return { ok: false, error: 'Inspection not found.' }
+  }
+
+  // 2. Role-based permission check
+  if (user.role === 'inspector' && existing.inspectorEmployeeId !== user.employeeId) {
+    return { ok: false, error: 'You do not have permission to delete this inspection.' }
+  }
+  if (user.role === 'supervisor' && existing.state !== user.state) {
+    return { ok: false, error: 'You do not have permission to delete inspections outside your state.' }
+  }
+
+  // 3. Delete associated report and inspection
+  await db.delete(reports).where(eq(reports.inspectionId, id))
+  await db.delete(inspections).where(eq(inspections.id, id))
+
+  return { ok: true }
 }
 
 // ---------------------------------------------------------------------------
@@ -281,8 +428,7 @@ export async function createInspection(
 // ---------------------------------------------------------------------------
 
 export async function getReportsForUser(user: AuthUser): Promise<ReportRecord[]> {
-  const me = user.role === 'admin' ? null : await resolveUser(user.employeeId)
-  const rows = await db
+  const q = db
     .select({
       id: reports.id,
       inspectionId: reports.inspectionId,
@@ -291,32 +437,30 @@ export async function getReportsForUser(user: AuthUser): Promise<ReportRecord[]>
       date: reports.date,
       score: reports.score,
       status: reports.status,
-      employeeId: users.employeeId,
-      state: users.state,
-      role: users.role,
     })
     .from(reports)
     .innerJoin(inspections, eq(reports.inspectionId, inspections.id))
     .leftJoin(users, eq(inspections.inspectorId, users.id))
-    .where(
-      user.role === 'inspector'
-        ? eq(users.employeeId, user.employeeId)
-        : user.role === 'supervisor' && me
-          ? and(eq(users.role, 'inspector'), eq(users.state, me.state))
-          : undefined,
-    )
+    .orderBy(desc(reports.date), desc(reports.generatedAt))
 
-  return rows
-    .map((r) => ({
-      id: r.id,
-      inspectionId: r.inspectionId,
-      product: r.product,
-      inspector: r.inspector,
-      date: r.date,
-      score: r.score,
-      status: r.status as ComplianceStatus,
-    }))
-    .sort((a, b) => b.date.localeCompare(a.date))
+  let rows
+  if (user.role === 'inspector') {
+    rows = await q.where(eq(users.employeeId, user.employeeId))
+  } else if (user.role === 'supervisor') {
+    rows = await q.where(and(eq(users.role, 'inspector'), eq(users.state, user.state)))
+  } else {
+    rows = await q
+  }
+
+  return rows.map((r) => ({
+    id: r.id,
+    inspectionId: r.inspectionId,
+    product: r.product,
+    inspector: r.inspector,
+    date: r.date,
+    score: r.score,
+    status: r.status as ComplianceStatus,
+  }))
 }
 
 // ---------------------------------------------------------------------------
@@ -325,34 +469,57 @@ export async function getReportsForUser(user: AuthUser): Promise<ReportRecord[]>
 
 export async function getProducts(): Promise<ProductRecord[]> {
   const rows = await db
-    .select({ insp: inspections, inspectorName: users.name })
+    .select({
+      id: inspections.id,
+      productName: inspections.productName,
+      manufacturer: inspections.manufacturer,
+      category: inspections.category,
+      score: inspections.score,
+      status: inspections.status,
+      date: inspections.date,
+      inspectorName: users.name,
+    })
     .from(inspections)
     .leftJoin(users, eq(inspections.inspectorId, users.id))
     .orderBy(desc(inspections.date))
 
-  const groups = new Map<string, { insp: Inspection; history: ProductRecord['history'] }>()
+  const groups = new Map<
+    string,
+    {
+      id: string
+      name: string
+      manufacturer: string
+      category: string
+      lastInspection: string
+      score: number
+      status: ComplianceStatus
+      history: ProductRecord['history']
+    }
+  >()
+
   for (const row of rows) {
-    const insp = mapInspection(row)
-    const key = `${insp.productName}||${insp.manufacturer}`
-    if (!groups.has(key)) groups.set(key, { insp, history: [] })
+    const key = `${row.productName}||${row.manufacturer}`
+    if (!groups.has(key)) {
+      groups.set(key, {
+        id: row.id,
+        name: row.productName,
+        manufacturer: row.manufacturer,
+        category: row.category,
+        lastInspection: row.date,
+        score: row.score,
+        status: row.status as ComplianceStatus,
+        history: [],
+      })
+    }
     groups.get(key)!.history.push({
-      date: insp.date,
-      score: insp.score,
-      status: insp.status,
-      inspector: insp.inspectorName,
+      date: row.date,
+      score: row.score,
+      status: row.status as ComplianceStatus,
+      inspector: row.inspectorName ?? 'Unknown',
     })
   }
 
-  return [...groups.values()].map((g) => ({
-    id: g.insp.id,
-    name: g.insp.productName,
-    manufacturer: g.insp.manufacturer,
-    category: g.insp.category,
-    lastInspection: g.insp.date,
-    score: g.insp.score,
-    status: g.insp.status,
-    history: g.history,
-  }))
+  return [...groups.values()]
 }
 
 // ---------------------------------------------------------------------------
@@ -360,27 +527,81 @@ export async function getProducts(): Promise<ProductRecord[]> {
 // ---------------------------------------------------------------------------
 
 export async function getDashboardData(user: AuthUser): Promise<DashboardData> {
-  const me = await resolveUser(user.employeeId)
-  const [allRows, userRows] = await Promise.all([
-    allInspectionRows(),
-    db.select().from(users),
+  const [scopedInspections, userRows, allSummaryRows] = await Promise.all([
+    // User's scoped inspections (ordered by date desc)
+    (async () => {
+      const q = db
+        .select({
+          id: inspections.id,
+          productName: inspections.productName,
+          manufacturer: inspections.manufacturer,
+          category: inspections.category,
+          score: inspections.score,
+          status: inspections.status,
+          date: inspections.date,
+          state: inspections.state,
+          batchNumber: inspections.batchNumber,
+          inspectorId: users.employeeId,
+          inspectorName: users.name,
+          image: inspections.image,
+          sourceType: inspections.sourceType,
+          productLink: inspections.productLink,
+          notes: inspections.notes,
+          fields: inspections.fields,
+        })
+        .from(inspections)
+        .leftJoin(users, eq(inspections.inspectorId, users.id))
+        .orderBy(desc(inspections.date), desc(inspections.createdAt))
+
+      if (user.role === 'inspector') {
+        return q.where(eq(users.employeeId, user.employeeId))
+      } else if (user.role === 'supervisor') {
+        return q.where(and(eq(users.role, 'inspector'), eq(users.state, user.state)))
+      }
+      return q
+    })(),
+    // Users (needed for supervisor team view and admin officer metrics)
+    user.role !== 'inspector' ? db.select().from(users) : Promise.resolve([]),
+    // Summary rows without heavy columns for fast stats & analytics
+    db
+      .select({
+        inspectorId: inspections.inspectorId,
+        date: inspections.date,
+        status: inspections.status,
+        state: inspections.state,
+        score: inspections.score,
+        fields: inspections.fields,
+      })
+      .from(inspections),
   ])
-  const inspections = allRows.map(mapInspection)
-  const officers = computeOfficers(userRows, allRows)
 
-  let scoped = inspections
-  if (user.role === 'inspector' && me) {
-    scoped = inspections.filter((i) => i.inspectorId === me.employeeId)
-  } else if (user.role === 'supervisor' && me) {
-    const team = new Set(
-      userRows.filter((u) => u.role === 'inspector' && u.state === me.state).map((u) => u.employeeId),
-    )
-    scoped = inspections.filter((i) => team.has(i.inspectorId))
-  }
+  const inspectionsList: Inspection[] = scopedInspections.map((r) => ({
+    id: r.id,
+    productName: r.productName,
+    manufacturer: r.manufacturer,
+    category: r.category,
+    score: r.score,
+    status: r.status as ComplianceStatus,
+    date: r.date,
+    state: r.state,
+    batchNumber: r.batchNumber,
+    inspectorId: r.inspectorId ?? '',
+    inspectorName: r.inspectorName ?? 'Unknown',
+    image: r.image ?? '/placeholder.svg',
+    sourceType: (r.sourceType as 'image' | 'url') ?? 'image',
+    productLink: r.productLink,
+    notes: r.notes,
+    fields: ((r.fields as AnalysisField[]) ?? []).map((f, idx) => ({
+      ...f,
+      box: DECLARATION_TEMPLATE[idx]?.box ?? { x: 0, y: 0, w: 0, h: 0 },
+    })),
+  }))
 
-  const analytics = aggregateAnalytics(allRows)
+  const officers = computeOfficers(userRows, allSummaryRows)
+  const analytics = aggregateAnalytics(allSummaryRows)
+
   return {
-    inspections: scoped,
+    inspections: inspectionsList,
     officers,
     inspectionsOverTime: analytics.overTime,
     complianceTrend: analytics.complianceTrend,
@@ -390,7 +611,16 @@ export async function getDashboardData(user: AuthUser): Promise<DashboardData> {
 }
 
 export async function getAnalyticsData(): Promise<AnalyticsData> {
-  const rows = await db.select({ insp: inspections }).from(inspections)
+  const rows = await db
+    .select({
+      inspectorId: inspections.inspectorId,
+      date: inspections.date,
+      status: inspections.status,
+      state: inspections.state,
+      score: inspections.score,
+      fields: inspections.fields,
+    })
+    .from(inspections)
   return aggregateAnalytics(rows)
 }
 
@@ -455,3 +685,4 @@ export async function verifyCredentials(
   if (!u.active) return { ok: false, error: 'Your account has been deactivated. Contact your administrator.' }
   return { ok: true, user: u }
 }
+

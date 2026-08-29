@@ -1,6 +1,7 @@
 export type Role = 'inspector' | 'supervisor' | 'admin'
 
 export interface AuthUser {
+  id?: string
   employeeId: string
   name: string
   role: Role
