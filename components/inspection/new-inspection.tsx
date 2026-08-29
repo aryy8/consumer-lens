@@ -31,6 +31,54 @@ interface TickerItem {
   done: boolean
 }
 
+async function compressImageFile(file: File): Promise<{ dataUrl: string; file: File }> {
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const rawDataUrl = e.target?.result as string
+      if (!rawDataUrl) return resolve({ dataUrl: '', file })
+      const img = new window.Image()
+      img.onload = () => {
+        const MAX_DIM = 1280
+        let { width, height } = img
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) {
+            height = Math.round((height * MAX_DIM) / width)
+            width = MAX_DIM
+          } else {
+            width = Math.round((width * MAX_DIM) / height)
+            height = MAX_DIM
+          }
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height)
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.84)
+          canvas.toBlob(
+            (blob) => {
+              const compressedFile = blob
+                ? new File([blob], file.name.replace(/\.[^/.]+$/, '.jpg'), { type: 'image/jpeg' })
+                : file
+              resolve({ dataUrl, file: compressedFile })
+            },
+            'image/jpeg',
+            0.84,
+          )
+          return
+        }
+        resolve({ dataUrl: rawDataUrl, file })
+      }
+      img.onerror = () => resolve({ dataUrl: rawDataUrl, file })
+      img.src = rawDataUrl
+    }
+    reader.onerror = () => resolve({ dataUrl: '', file })
+    reader.readAsDataURL(file)
+  })
+}
+
 export function NewInspection() {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -60,6 +108,15 @@ export function NewInspection() {
   const [isSaved, setIsSaved] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
+  const handleIncomingFile = async (file: File, nameFallback?: string) => {
+    setFileName(file.name || nameFallback || 'Product Label.jpg')
+    const { dataUrl, file: compressed } = await compressImageFile(file)
+    if (dataUrl) {
+      setImage(dataUrl)
+      setImageFile(compressed)
+    }
+  }
+
   // Clipboard Paste Support
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
@@ -73,13 +130,7 @@ export function NewInspection() {
         if (item.type.indexOf('image') !== -1) {
           const file = item.getAsFile()
           if (file) {
-            setFileName(file.name || 'Pasted Image')
-            setImageFile(file)
-            const reader = new FileReader()
-            reader.onload = () => {
-              setImage(reader.result as string)
-            }
-            reader.readAsDataURL(file)
+            handleIncomingFile(file, 'Pasted Image.jpg')
             break
           }
         }
@@ -121,13 +172,7 @@ export function NewInspection() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      setFileName(file.name)
-      setImageFile(file)
-      const reader = new FileReader()
-      reader.onload = () => {
-        setImage(reader.result as string)
-      }
-      reader.readAsDataURL(file)
+      handleIncomingFile(file)
     }
   }
 
@@ -146,13 +191,7 @@ export function NewInspection() {
     setDragActive(false)
     const file = e.dataTransfer.files?.[0]
     if (file) {
-      setFileName(file.name)
-      setImageFile(file)
-      const reader = new FileReader()
-      reader.onload = () => {
-        setImage(reader.result as string)
-      }
-      reader.readAsDataURL(file)
+      handleIncomingFile(file)
     }
   }
 
@@ -193,15 +232,7 @@ export function NewInspection() {
       (blob) => {
         if (!blob) return
         const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' })
-        setImageFile(file)
-        setFileName('Camera Capture.jpg')
-
-        const reader = new FileReader()
-        reader.onload = () => {
-          setImage(reader.result as string)
-        }
-        reader.readAsDataURL(file)
-
+        handleIncomingFile(file, 'Camera Capture.jpg')
         closeCamera()
       },
       'image/jpeg',

@@ -27,6 +27,7 @@ export async function POST(req: Request) {
 
   const u = result.user
   await createSession({
+    id: u.id,
     employeeId: u.employeeId,
     name: u.name,
     role: u.role as Role,
@@ -37,6 +38,7 @@ export async function POST(req: Request) {
   return NextResponse.json({
     ok: true,
     user: {
+      id: u.id,
       employeeId: u.employeeId,
       name: u.name,
       role: u.role,

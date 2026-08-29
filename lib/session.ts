@@ -1,6 +1,7 @@
 import { jwtVerify, SignJWT } from 'jose'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { cache } from 'react'
 import type { AuthUser } from './types'
 
 const COOKIE_NAME = 'cl_session'
@@ -12,14 +13,15 @@ function getSecret(): Uint8Array {
   return new TextEncoder().encode(secret)
 }
 
-/** Read and verify the session cookie. Returns the user or null (never throws). */
-export async function getSessionUser(): Promise<AuthUser | null> {
+/** Read and verify the session cookie. Returns the user or null (never throws). Cached per request. */
+export const getSessionUser = cache(async function getSessionUser(): Promise<AuthUser | null> {
   const store = await cookies()
   const token = store.get(COOKIE_NAME)?.value
   if (!token) return null
   try {
     const { payload } = await jwtVerify(token, getSecret())
     return {
+      id: payload.id as string | undefined,
       employeeId: payload.employeeId as string,
       name: payload.name as string,
       role: payload.role as AuthUser['role'],
@@ -29,11 +31,12 @@ export async function getSessionUser(): Promise<AuthUser | null> {
   } catch {
     return null
   }
-}
+})
 
 /** Sign a session JWT and set it as an HTTP-only cookie. */
 export async function createSession(user: AuthUser): Promise<void> {
   const token = await new SignJWT({
+    id: user.id,
     employeeId: user.employeeId,
     name: user.name,
     role: user.role,
