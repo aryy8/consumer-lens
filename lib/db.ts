@@ -30,4 +30,22 @@ function getPool(): Pool {
   return globalForDb.__clPool
 }
 
-export const db = drizzle(getPool(), { schema })
+function createDb() {
+  return drizzle(getPool(), { schema })
+}
+
+export const db = new Proxy({} as ReturnType<typeof drizzle<typeof schema>>, {
+  get(_target, prop, receiver) {
+    if (!globalForDb.__clPool) {
+      // triggers getPool() which validates DATABASE_URL at runtime when a query is actually executed
+      getPool()
+    }
+    const realDb = createDb()
+    const value = Reflect.get(realDb, prop, receiver)
+    if (typeof value === 'function') {
+      return value.bind(realDb)
+    }
+    return value
+  },
+})
+

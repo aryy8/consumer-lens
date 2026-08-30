@@ -165,7 +165,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
         <main className="min-w-0 flex-1 p-5 pb-24 lg:p-8 lg:pb-8">{children}</main>
 
         {/* Mobile bottom navigation bar */}
-        <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background pb-safe-bottom lg:hidden shadow-lg">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background pb-safe-bottom lg:hidden shadow-lg">
           <ul className="flex h-16 items-center justify-around px-2">
             {items.slice(0, 5).map((item) => {
               const active =
