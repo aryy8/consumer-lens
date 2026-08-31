@@ -896,7 +896,7 @@ export function NewInspection() {
         {step === 'result' && result && (
           <div className="flex flex-col gap-6">
             {/* Top Section: Product Identity Bar */}
-            <div className="flex items-center justify-between border-b border-border pb-6 gap-4 animate-[fadeIn_0.3s_ease-out_forwards]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border pb-6 gap-4 animate-[fadeIn_0.3s_ease-out_forwards]">
               <div>
                 <h1 className="text-[20px] font-bold text-foreground">{displayProductName}</h1>
                 <p className="text-[13px] text-muted-foreground mt-0.5">
@@ -905,8 +905,8 @@ export function NewInspection() {
                 </p>
               </div>
               
-              <div className="flex items-center gap-4 shrink-0">
-                <div className="text-right">
+              <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
+                <div className="text-left sm:text-right">
                   <span className={cn('text-sm font-semibold tracking-wider', statusColor)}>
                     {statusText}
                   </span>
@@ -916,30 +916,30 @@ export function NewInspection() {
                 </div>
 
                 {/* Score Ring */}
-                <div className="relative size-[70px] flex items-center justify-center shrink-0">
-                  <svg className="size-full -rotate-90">
+                <div className="relative size-[76px] flex items-center justify-center shrink-0">
+                  <svg className="size-full -rotate-90" viewBox="0 0 76 76">
                     <circle
-                      cx="35"
-                      cy="35"
-                      r="30"
+                      cx="38"
+                      cy="38"
+                      r="33"
                       className="stroke-muted/30"
-                      strokeWidth="4"
+                      strokeWidth="4.5"
                       fill="transparent"
                     />
                     <circle
-                      cx="35"
-                      cy="35"
-                      r="30"
+                      cx="38"
+                      cy="38"
+                      r="33"
                       className={cn(strokeColor, 'transition-all duration-1000 ease-out')}
-                      strokeWidth="4"
-                      strokeDasharray="188"
-                      strokeDashoffset={188 - (188 * result.score) / 100}
+                      strokeWidth="4.5"
+                      strokeDasharray="207.3"
+                      strokeDashoffset={207.3 - (207.3 * result.score) / 100}
                       strokeLinecap="round"
                       fill="transparent"
                     />
                   </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className={cn('text-[44px] font-bold leading-none', scoreColor)}>
+                  <div className="absolute inset-0 flex items-center justify-center px-1">
+                    <span className={cn('text-2xl sm:text-[28px] font-bold tracking-tight leading-none text-center', scoreColor)}>
                       {result.score}
                     </span>
                   </div>
