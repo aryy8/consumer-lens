@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { ChevronDown, LogOut, Menu, X } from 'lucide-react'
+import { ChevronDown, LogOut } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { navForRole } from '@/lib/nav'
 import type { AuthUser } from '@/lib/types'
@@ -20,7 +20,6 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
   const { logout } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
-  const [mobileOpen, setMobileOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
 
@@ -36,7 +35,6 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
   }
 
   useEffect(() => {
-    setMobileOpen(false)
     setMenuOpen(false)
   }, [pathname])
 
@@ -57,63 +55,9 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
     <div className="flex min-h-screen bg-muted/30">
       <AppSidebar collapsed={collapsed} toggleCollapsed={toggleCollapsed} />
 
-      {/* Mobile drawer */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-navy/50" onClick={() => setMobileOpen(false)} />
-          <div className="absolute left-0 top-0 flex h-full w-64 flex-col bg-sidebar text-sidebar-foreground">
-            <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
-              <div className="flex items-center gap-2">
-                <div className="flex size-8 items-center justify-center rounded-md bg-transparent overflow-hidden">
-                  <img src="/favicon.webp" alt="Logo" className="size-full object-cover" />
-                </div>
-                <span className="text-sm font-semibold text-[#12203c]">Consumer Lens</span>
-              </div>
-              <button onClick={() => setMobileOpen(false)} aria-label="Close menu" className="text-slate hover:text-[#12203c]">
-                <X className="size-5" />
-              </button>
-            </div>
-            <nav className="flex-1 px-3 py-4">
-              <ul className="flex flex-col gap-0.5">
-                {items.map((item) => {
-                  const active =
-                    item.href === '/inspections'
-                      ? pathname === '/inspections' || (pathname.startsWith('/inspections/') && pathname !== '/inspections/new')
-                      : pathname === item.href || pathname.startsWith(item.href + '/')
-                  const Icon = item.icon
-                  return (
-                    <li key={item.href}>
-                      <Link
-                        href={item.href}
-                        className={cn(
-                          'flex items-center gap-3 rounded-md border-l-2 py-2 pl-3 text-sm font-medium transition-colors',
-                          active
-                            ? 'border-[#2563EB] bg-[#DBEAFE] text-[#2563EB]'
-                            : 'border-transparent text-slate hover:bg-[#DBEAFE]/50 hover:text-[#2563EB]',
-                        )}
-                      >
-                        <Icon className="size-[18px]" strokeWidth={2} />
-                        {item.label}
-                      </Link>
-                    </li>
-                  )
-                })}
-              </ul>
-            </nav>
-          </div>
-        </div>
-      )}
-
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-border bg-background px-5">
           <div className="flex items-center gap-3">
-            <button
-              className="text-slate lg:hidden"
-              onClick={() => setMobileOpen(true)}
-              aria-label="Open menu"
-            >
-              <Menu className="size-5" />
-            </button>
             <h1 className="text-base font-semibold tracking-tight text-foreground">
               {current?.label ?? 'Consumer Lens'}
             </h1>
