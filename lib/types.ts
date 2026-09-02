@@ -52,11 +52,16 @@ export interface Inspection {
   batchNumber: string
   inspectorId: string
   inspectorName: string
+  inspectorEmployeeId?: string
   image: string
+  images?: string[]
   sourceType: 'image' | 'url'
   productLink: string | null
   notes: string
   fields: DeclarationField[]
+  coordinates?: { lat: number; lng: number; accuracy?: number; address?: string } | string
+  timestamp?: string
+  evidenceHash?: string
 }
 
 export interface ProductRecord {

@@ -33,7 +33,7 @@ export function ReportsTable({ reports }: { reports: ReportRecord[] }) {
       }
       const data = (await res.json()) as { inspection: Inspection | null }
       if (data.inspection) {
-        generateInspectionPDF(data.inspection)
+        await generateInspectionPDF(data.inspection)
       } else {
         alert('Inspection details not found.')
       }

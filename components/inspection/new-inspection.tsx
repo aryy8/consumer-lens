@@ -17,6 +17,9 @@ import {
   Loader2,
   Download,
   Save,
+  MapPin,
+  Sparkles,
+  Plus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CATEGORIES, STATES, DECLARATION_TEMPLATE } from '@/lib/data'
@@ -29,6 +32,31 @@ type Step = 'capture' | 'scanning' | 'result'
 interface TickerItem {
   text: string
   done: boolean
+}
+
+const INDIAN_STATE_COORDS: { state: string; latMin: number; latMax: number; lngMin: number; lngMax: number }[] = [
+  { state: 'Rajasthan', latMin: 23.0, latMax: 30.2, lngMin: 69.5, lngMax: 78.3 },
+  { state: 'Maharashtra', latMin: 15.5, latMax: 22.1, lngMin: 72.6, lngMax: 80.9 },
+  { state: 'Delhi', latMin: 28.3, latMax: 28.9, lngMin: 76.8, lngMax: 77.4 },
+  { state: 'Karnataka', latMin: 11.5, latMax: 18.5, lngMin: 74.2, lngMax: 78.6 },
+  { state: 'Tamil Nadu', latMin: 8.1, latMax: 13.5, lngMin: 76.2, lngMax: 80.3 },
+  { state: 'Telangana', latMin: 15.8, latMax: 19.9, lngMin: 77.2, lngMax: 81.3 },
+  { state: 'Gujarat', latMin: 20.1, latMax: 24.7, lngMin: 68.1, lngMax: 74.5 },
+  { state: 'West Bengal', latMin: 21.5, latMax: 27.2, lngMin: 85.8, lngMax: 89.9 },
+  { state: 'Uttar Pradesh', latMin: 23.8, latMax: 30.4, lngMin: 77.1, lngMax: 84.6 },
+  { state: 'Kerala', latMin: 8.3, latMax: 12.8, lngMin: 74.8, lngMax: 77.4 },
+  { state: 'Haryana', latMin: 27.6, latMax: 30.9, lngMin: 74.5, lngMax: 77.6 },
+  { state: 'Punjab', latMin: 29.5, latMax: 32.5, lngMin: 73.8, lngMax: 76.9 },
+  { state: 'Madhya Pradesh', latMin: 21.1, latMax: 26.9, lngMin: 74.0, lngMax: 82.8 },
+]
+
+function detectStateFromGPS(lat: number, lng: number): string | null {
+  for (const s of INDIAN_STATE_COORDS) {
+    if (lat >= s.latMin && lat <= s.latMax && lng >= s.lngMin && lng <= s.lngMax) {
+      return s.state
+    }
+  }
+  return null
 }
 
 async function compressImageFile(file: File): Promise<{ dataUrl: string; file: File }> {
@@ -82,6 +110,7 @@ async function compressImageFile(file: File): Promise<{ dataUrl: string; file: F
 export function NewInspection() {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const extraFileInputRef = useRef<HTMLInputElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -89,6 +118,7 @@ export function NewInspection() {
   const [step, setStep] = useState<Step>('capture')
   const [image, setImage] = useState<string | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
+  const [extraImages, setExtraImages] = useState<string[]>([])
   const [fileName, setFileName] = useState<string>('')
   const [category, setCategory] = useState(CATEGORIES[0])
   const [batchNumber, setBatchNumber] = useState('')
@@ -108,12 +138,89 @@ export function NewInspection() {
   const [isSaved, setIsSaved] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
+  const [stateOptions, setStateOptions] = useState<string[]>(STATES)
+  const [geoCoords, setGeoCoords] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null)
+  const [isLocating, setIsLocating] = useState(false)
+  const [locationBadge, setLocationBadge] = useState<string | null>(null)
+  const [activePreviewIndex, setActivePreviewIndex] = useState<number>(0)
+
+  const handleAutoDetectLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setLocationBadge('Geolocation not supported on browser')
+      return
+    }
+    setIsLocating(true)
+    setLocationBadge('Acquiring GPS fix...')
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude
+        const lng = pos.coords.longitude
+        const acc = Math.round(pos.coords.accuracy)
+        setGeoCoords({ lat, lng, accuracy: acc })
+
+        // Try reverse geocoding API for exact State name
+        let detectedState: string | null = null
+        let detectedCity: string | null = null
+
+        try {
+          const res = await fetch(
+            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`
+          )
+          if (res.ok) {
+            const data = await res.json()
+            detectedState = data.principalSubdivision || data.localityInfo?.administrative?.[1]?.name || null
+            detectedCity = data.city || data.locality || ''
+          }
+        } catch {
+          // Ignore network errors, fall back to coordinate mapping
+        }
+
+        if (!detectedState) {
+          detectedState = detectStateFromGPS(lat, lng)
+        }
+
+        if (detectedState) {
+          // Normalize state name to match dropdown options or add it dynamically
+          const matched = stateOptions.find(
+            (s) => s.toLowerCase() === detectedState!.toLowerCase() || detectedState!.toLowerCase().includes(s.toLowerCase())
+          ) || detectedState
+
+          if (!stateOptions.includes(matched)) {
+            setStateOptions((prev) => [matched, ...prev])
+          }
+
+          setState(matched)
+          const cityStr = detectedCity ? `${detectedCity}, ` : ''
+          setLocationBadge(`GPS Fix: ${cityStr}${matched} (${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E)`)
+        } else {
+          setLocationBadge(`GPS Fix: ${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E (±${acc}m)`)
+        }
+        setIsLocating(false)
+      },
+      (err) => {
+        console.warn('GPS error:', err)
+        setLocationBadge('Using manual location selection')
+        setIsLocating(false)
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    )
+  }, [stateOptions])
+
+  // Auto-detect GPS location on load
+  useEffect(() => {
+    handleAutoDetectLocation()
+  }, [handleAutoDetectLocation])
+
   const handleIncomingFile = async (file: File, nameFallback?: string) => {
     setFileName(file.name || nameFallback || 'Product Label.jpg')
     const { dataUrl, file: compressed } = await compressImageFile(file)
     if (dataUrl) {
-      setImage(dataUrl)
-      setImageFile(compressed)
+      if (!image) {
+        setImage(dataUrl)
+        setImageFile(compressed)
+      } else {
+        setExtraImages((prev) => [...prev, dataUrl])
+      }
     }
   }
 
@@ -606,11 +713,26 @@ export function NewInspection() {
         {/* STATE 1 — Upload / Capture */}
         {step === 'capture' && (
           <div className="flex flex-col gap-6 animate-[fadeIn_0.3s_ease-out_forwards]">
-            {/* Hidden File Input */}
+            {/* Hidden File Inputs */}
             <input
               type="file"
               ref={fileInputRef}
               onChange={handleFileChange}
+              accept="image/*"
+              className="hidden"
+            />
+            <input
+              type="file"
+              ref={extraFileInputRef}
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  const { dataUrl } = await compressImageFile(file)
+                  if (dataUrl) {
+                    setExtraImages((prev) => [...prev, dataUrl])
+                  }
+                }
+              }}
               accept="image/*"
               className="hidden"
             />
@@ -669,21 +791,71 @@ export function NewInspection() {
                   title="Click or drag to upload an image. You can also paste directly using Ctrl+V / Cmd+V."
                 >
                   {image ? (
-                    <div className="relative w-full h-[180px] md:h-[300px] flex items-center justify-center overflow-hidden rounded-md bg-muted/20">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={image} alt="Uploaded label preview" className="max-h-[160px] md:max-h-[280px] w-auto object-contain rounded-md animate-[fadeIn_0.3s_ease-out]" />
-                      
-                      <div className="absolute top-2 right-2">
+                    <div className="flex flex-col gap-3 w-full">
+                      <div className="relative w-full h-[180px] md:h-[260px] flex items-center justify-center overflow-hidden rounded-md bg-muted/20">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={extraImages.length > 0 && activePreviewIndex > 0 ? extraImages[activePreviewIndex - 1] : image}
+                          alt="Uploaded label preview"
+                          className="max-h-[160px] md:max-h-[240px] w-auto object-contain rounded-md animate-[fadeIn_0.3s_ease-out]"
+                        />
+                        
+                        {/* Red Delete Button in top-right corner */}
+                        <div className="absolute top-2 right-2 z-10">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (activePreviewIndex > 0) {
+                                setExtraImages(extraImages.filter((_, i) => i !== activePreviewIndex - 1))
+                                setActivePreviewIndex(0)
+                              } else {
+                                if (extraImages.length > 0) {
+                                  setImage(extraImages[0])
+                                  setExtraImages(extraImages.slice(1))
+                                } else {
+                                  setImage(null)
+                                  setImageFile(null)
+                                  setFileName('')
+                                }
+                                setActivePreviewIndex(0)
+                              }
+                            }}
+                            className="flex size-7 items-center justify-center rounded-full bg-red-600 hover:bg-red-700 text-white shadow-md transition-all cursor-pointer"
+                            title="Delete photo"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Multi-Image Thumbnail Strip */}
+                      <div className="flex items-center gap-2.5 overflow-x-auto pb-1 pt-1 select-none" onClick={(e) => e.stopPropagation()}>
+                        {[image, ...extraImages].map((imgSrc, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setActivePreviewIndex(idx)}
+                            className={cn(
+                              'relative size-14 shrink-0 rounded-lg border-2 overflow-hidden transition-all bg-white cursor-pointer p-0.5',
+                              activePreviewIndex === idx
+                                ? 'border-primary shadow-xs'
+                                : 'border-border opacity-60 hover:opacity-100'
+                            )}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={imgSrc} alt={`Label photo ${idx + 1}`} className="size-full object-contain rounded-md" />
+                          </button>
+                        ))}
+
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setImage(null)
-                            setImageFile(null)
-                            setFileName('')
-                          }}
-                          className="bg-black/70 hover:bg-black/90 text-white text-xs px-2.5 py-1 rounded-md font-semibold transition-all shadow-sm cursor-pointer flex items-center gap-1"
+                          type="button"
+                          onClick={() => extraFileInputRef.current?.click()}
+                          className="flex size-14 shrink-0 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border/80 bg-background hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all cursor-pointer"
+                          title="Add packaging photo"
                         >
-                          <Trash2 className="size-3" /> Remove
+                          <Plus className="size-4" />
+                          <span className="text-[10px] font-medium leading-none">Add</span>
                         </button>
                       </div>
                     </div>
@@ -692,7 +864,7 @@ export function NewInspection() {
                       <Upload className="size-8 md:size-12 text-muted-foreground/60 transition-colors group-hover/dropbox:text-primary" strokeWidth={1.5} />
                       <div className="max-w-[280px]">
                         <p className="text-sm md:text-base font-medium text-foreground transition-colors group-hover/dropbox:text-primary">
-                          Drop your product label here
+                          Drop product label images here
                         </p>
                         <p className="mt-0.5 md:mt-1 text-[11px] md:text-xs text-muted-foreground">PNG, JPG, HEIC up to 20MB</p>
                         <p className="mt-0.5 md:mt-1 text-[10px] md:text-[11px] text-muted-foreground/70">Or paste directly (Cmd+V / Ctrl+V)</p>
@@ -701,7 +873,7 @@ export function NewInspection() {
                   )}
                 </div>
 
-                {/* Camera Button */}
+                {/* Single Minimal Camera Option */}
                 <button
                   type="button"
                   onClick={openCamera}
@@ -764,7 +936,12 @@ export function NewInspection() {
               <div className="flex flex-col justify-between rounded-lg border border-border bg-white p-6 shadow-sm">
                 <div className="space-y-4">
                   <label className="text-sm block">
-                    <span className="mb-1 block text-[13px] font-medium text-foreground">Product Category</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[13px] font-medium text-foreground">Product Category</span>
+                      <span className="text-[11px] text-muted-foreground font-normal">
+                        (Auto-detected by AI)
+                      </span>
+                    </div>
                     <select
                       value={category}
                       onChange={(e) => setCategory(e.target.value)}
@@ -777,26 +954,45 @@ export function NewInspection() {
                   </label>
 
                   <label className="text-sm block">
-                    <span className="mb-1 block text-[13px] font-medium text-foreground">Batch / Lot Number</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[13px] font-medium text-foreground">Batch / Lot Number</span>
+                      <span className="text-[11px] text-muted-foreground">(Optional — AI extracts from OCR)</span>
+                    </div>
                     <input
                       value={batchNumber}
                       onChange={(e) => setBatchNumber(e.target.value)}
-                      placeholder="e.g. AC-SR-1183"
+                      placeholder="e.g. AC-SR-1183 (or leave blank for AI extraction)"
                       className={fieldInputCls}
                     />
                   </label>
 
                   <label className="text-sm block">
-                    <span className="mb-1 block text-[13px] font-medium text-foreground">Inspection State</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[13px] font-medium text-foreground">Inspection State / Region</span>
+                      <button
+                        type="button"
+                        onClick={handleAutoDetectLocation}
+                        disabled={isLocating}
+                        className="text-xs font-semibold text-primary hover:text-primary/80 flex items-center gap-1 cursor-pointer"
+                      >
+                        <MapPin className={cn('size-3.5', isLocating && 'animate-spin')} />
+                        {isLocating ? 'Locating...' : 'Auto-Detect GPS'}
+                      </button>
+                    </div>
                     <select
                       value={state}
                       onChange={(e) => setState(e.target.value)}
                       className={fieldInputCls}
                     >
-                      {STATES.map((s) => (
+                      {stateOptions.map((s) => (
                         <option key={s}>{s}</option>
                       ))}
                     </select>
+                    {locationBadge && (
+                      <p className="mt-1 text-[11px] text-emerald-700 font-medium flex items-center gap-1 animate-[fadeIn_0.2s_ease-out]">
+                        <MapPin className="size-3 text-emerald-600 shrink-0" /> {locationBadge}
+                      </p>
+                    )}
                   </label>
 
                   <label className="text-sm block">
@@ -971,12 +1167,53 @@ export function NewInspection() {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex flex-col gap-2">
-                  <div className="flex justify-between items-center gap-3">
-                    <Button variant="outline" onClick={reset} className="w-[48%] rounded-md">
-                      Scan Another
-                    </Button>
-                    <Button
+                <div className="flex flex-col gap-2.5">
+                  <div className="flex items-center gap-2.5">
+                    {/* Download PDF (Primary CTA) */}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!result) return
+                        const allImages = image ? [image, ...extraImages] : []
+                        const inspection: Inspection = savedInspection ? {
+                          ...savedInspection,
+                          images: allImages.length > 0 ? allImages : [savedInspection.image],
+                          timestamp: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-IN') + ' IST',
+                          inspectorEmployeeId: 'INS-2026-8942',
+                        } : {
+                          id: 'INSP-' + Math.floor(100000 + Math.random() * 900000),
+                          productName: result.productName,
+                          manufacturer: result.manufacturer,
+                          category: result.category,
+                          score: result.score,
+                          status: result.status,
+                          date: new Date().toISOString().slice(0, 10),
+                          state,
+                          batchNumber,
+                          inspectorId: '',
+                          inspectorName: 'Legal Metrology Inspector',
+                          inspectorEmployeeId: 'INS-2026-8942',
+                          image: image ?? '/placeholder.svg',
+                          images: allImages,
+                          sourceType: result.sourceType,
+                          productLink: productLink || null,
+                          notes,
+                          timestamp: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-IN') + ' IST',
+                          fields: result.fields.map((f, idx) => ({
+                            ...f,
+                            box: DECLARATION_TEMPLATE[idx]?.box ?? { x: 0, y: 0, w: 0, h: 0 },
+                          })),
+                        }
+                        await generateInspectionPDF(inspection)
+                      }}
+                      className="flex-1 h-10 rounded-lg bg-primary text-white hover:bg-primary/95 font-semibold text-xs md:text-sm transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Download className="size-4" /> Download PDF Report
+                    </button>
+
+                    {/* Save Report Button */}
+                    <button
+                      type="button"
                       onClick={async () => {
                         if (!result) return
                         setIsSaving(true)
@@ -1014,51 +1251,29 @@ export function NewInspection() {
                       }}
                       disabled={isSaved || isSaving}
                       className={cn(
-                        'w-[48%] rounded-md transition-all',
+                        'h-10 px-4 rounded-lg font-medium text-xs md:text-sm border transition-all flex items-center justify-center gap-1.5 cursor-pointer',
                         isSaved
-                          ? 'bg-success text-white hover:bg-success/90'
-                          : 'bg-primary text-white hover:bg-primary/95'
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                          : 'border-border bg-background hover:bg-muted text-foreground'
                       )}
                     >
                       {isSaved ? (
-                        <><CheckCircle2 className="size-4" /> Saved</>
+                        <><CheckCircle2 className="size-4 text-emerald-600" /> Saved</>
                       ) : isSaving ? (
                         <><Save className="size-4" /> Saving…</>
                       ) : (
-                        <><Save className="size-4" /> Save Report</>
+                        <><Save className="size-4" /> Save</>
                       )}
-                    </Button>
+                    </button>
                   </div>
+
+                  {/* Secondary Action: Scan Another */}
                   <button
-                    onClick={() => {
-                      if (!result) return
-                      // Use savedInspection if available, otherwise create a temporary one for PDF
-                      const inspection: Inspection = savedInspection ?? {
-                        id: 'DRAFT-' + Date.now(),
-                        productName: result.productName,
-                        manufacturer: result.manufacturer,
-                        category: result.category,
-                        score: result.score,
-                        status: result.status,
-                        date: new Date().toISOString().slice(0, 10),
-                        state,
-                        batchNumber,
-                        inspectorId: '',
-                        inspectorName: 'Inspector',
-                        image: image ?? '/placeholder.svg',
-                        sourceType: result.sourceType,
-                        productLink: productLink || null,
-                        notes,
-                        fields: result.fields.map((f, idx) => ({
-                          ...f,
-                          box: DECLARATION_TEMPLATE[idx]?.box ?? { x: 0, y: 0, w: 0, h: 0 },
-                        })),
-                      }
-                      generateInspectionPDF(inspection)
-                    }}
-                    className="w-full flex items-center justify-center gap-1.5 bg-navy text-white hover:bg-navy/90 py-3 rounded-md text-sm font-semibold transition-colors shadow-sm"
+                    type="button"
+                    onClick={reset}
+                    className="h-9 w-full rounded-lg border border-border/80 bg-muted/20 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    <Download className="size-4" /> Download PDF Report
+                    <RefreshCw className="size-3.5" /> Scan Another Product
                   </button>
                 </div>
               </div>
