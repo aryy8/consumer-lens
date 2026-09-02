@@ -142,8 +142,8 @@ export function InspectionDetail({ inspection }: { inspection: Inspection }) {
             <Button
               variant="outline"
               className="w-full gap-1.5"
-              onClick={() => {
-                generateInspectionPDF(inspection)
+              onClick={async () => {
+                await generateInspectionPDF(inspection)
               }}
             >
               <Download className="size-4" /> Export PDF report
