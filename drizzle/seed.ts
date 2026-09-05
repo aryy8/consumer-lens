@@ -65,7 +65,7 @@ const dataInstances: {
     productName: 'PureHarvest Cold Pressed Oil 1L', manufacturer: 'PureHarvest Agro Foods', category: 'Food & Beverages', batchNumber: 'PH-CP-4420', image: '/product-label-oil.png',
     overrides: {
       quantity: field('quantity', 'Net Vol. 1 L', 'compliant', null, null),
-      fontSize: field('fontSize', '1.4 mm', 'violation', 'minor', 'The height of the net quantity numerals measures 1.4 mm. Rule 9 prescribes a minimum height of 2 mm for principal display panels of this size. Numerals below the prescribed height reduce legibility for the consumer.'),
+      fontSize: field('fontSize', '1.4 mm', 'violation', 'minor', 'The height of the net quantity numerals measures 1.4 mm. Rule 7 & Table I prescribe a minimum height of 2 mm for principal display panels of this size. Numerals below the prescribed height reduce legibility for the consumer.'),
     },
   },
   {

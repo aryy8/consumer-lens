@@ -32,16 +32,16 @@ ${rules}
 INSTRUCTIONS:
 1. First, check if the product falls under any EXEMPTIONS (Rule 26). If exempt, note it and do not flag violations.
 2. For each of the following fields, extract what you find and assess compliance:
-   - Manufacturer/Packer/Importer Identity (Rule 1 — Rule 6(1)(a))
-   - Generic/Common Name of Commodity (Rule 2 — Rule 6(1)(b))
-   - Maximum Retail Price (Rule 3 — Rule 6(1)(c))
-   - Date of Manufacture/Packing (Rule 4 — Rule 6(1)(d))${sourceType === 'url' ? ' — EXEMPTED for e-commerce, mark as compliant with note' : ''}
-   - Net Quantity (Rule 5 — Rule 6(1)(e))
-   - Consumer Care Details (Rule 6 — Rule 6(2))
-   - Country of Origin (Rule 7 — for imports only)
-   - Best Before/Use By Date (Rule 8 — for perishable products)
-   - Unit Sale Price (Rule 9 — Rule 6(11))
-${sourceType === 'image' ? '   - Font Size compliance (Rules 10, 11)\n   - Principal Display Panel placement (Rule 12)\n   - Language of Declarations (Rule 14)' : ''}
+   - Manufacturer/Packer/Importer Identity (Rule 6(1)(a))
+   - Generic/Common Name of Commodity (Rule 6(1)(b))
+   - Net Quantity (Rule 6(1)(c))
+   - Date of Manufacture/Packing (Rule 6(1)(d))${sourceType === 'url' ? ' — EXEMPTED for e-commerce, mark as compliant with note' : ''}
+   - Maximum Retail Price (Rule 6(1)(e))
+   - Consumer Care Details (Rule 6(1)(f) / Rule 6(2))
+   - Country of Origin (Rule 6(1)(g) — for imports only)
+   - Best Before/Use By Date (Rule 6(1)(da) — for perishable products)
+   - Unit Sale Price (Rule 6(11))
+${sourceType === 'image' ? '   - Font Size compliance (Rule 7 & Table I)\n   - Principal Display Panel placement (Rule 7, Rule 8)\n   - Language & Legibility of Declarations (Rule 9)' : ''}
 
 3. For each field, determine:
    - "compliant" — if the declaration is present and correctly formatted per the rules
@@ -58,7 +58,7 @@ ${sourceType === 'image' ? '   - Font Size compliance (Rules 10, 11)\n   - Princ
    - For every field found on the label image, detect its 2D bounding box as [ymin, xmin, ymax, xmax] on a normalized 0 to 1000 integer scale (where ymin=top, xmin=left, ymax=bottom, xmax=right).
    - If the field is missing or not visible on the image, set "box_2d": null.
 
-6. Font Size & Prominence Analysis (Rules 10, 11, Rule 3, Rule 7):
+6. Font Size & Prominence Analysis (Rule 7 & Table I):
    - For each field, assess whether font height meets minimum prescribed thresholds based on net quantity (<200g: 1mm, 200-500g: 2mm, >500g: 4mm).
    - Check if MRP and Net Quantity are prominently displayed and in bold compared to other text.
    - Check if numeral width is at least 1/3 of numeral height.

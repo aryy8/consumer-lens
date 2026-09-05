@@ -36,7 +36,7 @@
 ---
 
 ## RULE 3 — Maximum Retail Price (MRP)
-**Rule Reference:** Rule 6(1)(c)
+**Rule Reference:** Rule 6(1)(e)
 **Severity if violated:** CRITICAL
 
 ### Requirements
@@ -77,7 +77,7 @@
 ---
 
 ## RULE 5 — Net Quantity
-**Rule Reference:** Rule 6(1)(e), Rule 11, Rule 13
+**Rule Reference:** Rule 6(1)(c), Rule 11, Rule 13
 **Severity if violated:** CRITICAL
 
 ### Requirements
@@ -115,7 +115,7 @@
 ---
 
 ## RULE 7 — Country of Origin
-**Rule Reference:** Rule 6 (applicable to imported products only)
+**Rule Reference:** Rule 6(1)(g) (mandatory for all imported products)
 **Severity if violated:** MAJOR
 
 ### Requirements
@@ -127,7 +127,7 @@
 ---
 
 ## RULE 8 — Best Before / Use By Date
-**Rule Reference:** 2017 Amendment, effective 1 January 2018
+**Rule Reference:** Rule 6(1)(da) (2017 Amendment, effective 1 January 2018)
 **Severity if violated:** MAJOR
 
 ### Requirements
@@ -141,7 +141,7 @@
 ---
 
 ## RULE 9 — Unit Sale Price (USP)
-**Rule Reference:** Rule 6(11), 2022 Amendment
+**Rule Reference:** Rule 6(11) (2022 Amendment) / Rule 18(3)
 **Severity if violated:** MINOR
 
 ### Requirements
@@ -163,7 +163,7 @@
 ---
 
 ## RULE 10 — Font Size of Numerals
-**Rule Reference:** Rule 7 + Table I, 2017 Amendment
+**Rule Reference:** Rule 7(3) + Table I (Principal Display Panel Numeral Height)
 **Severity if violated:** MAJOR
 
 ### Requirements
@@ -185,7 +185,7 @@ Minimum height of numerals (price, quantity, date when expressed in numbers) bas
 ---
 
 ## RULE 11 — Font Size of Letters (General Declaration Text)
-**Rule Reference:** Rule 7(3)
+**Rule Reference:** Rule 7(3) (Principal Display Panel Letter Height)
 **Severity if violated:** MAJOR
 
 ### Requirements

@@ -35,6 +35,6 @@ export const DECLARATION_TEMPLATE: Omit<
   { key: 'mrp', label: 'Retail Sale Price (MRP, incl. taxes)', rule: 'Rule 6(1)(e)', box: { x: 6, y: 48, w: 44, h: 9 } },
   { key: 'consumerCare', label: 'Consumer Care Details', rule: 'Rule 6(1)(f)', box: { x: 6, y: 62, w: 60, h: 9 } },
   { key: 'origin', label: 'Country of Origin', rule: 'Rule 6(1)(g)', box: { x: 6, y: 76, w: 34, h: 8 } },
-  { key: 'unitPrice', label: 'Unit Sale Price', rule: 'Rule 18(3)', box: { x: 52, y: 62, w: 40, h: 8 } },
-  { key: 'fontSize', label: 'Height of Numerals / Letters', rule: 'Rule 9', box: { x: 52, y: 76, w: 40, h: 8 } },
+  { key: 'unitPrice', label: 'Unit Sale Price', rule: 'Rule 6(11)', box: { x: 52, y: 62, w: 40, h: 8 } },
+  { key: 'fontSize', label: 'Height of Numerals / Letters', rule: 'Rule 7(3)', box: { x: 52, y: 76, w: 40, h: 8 } },
 ]
