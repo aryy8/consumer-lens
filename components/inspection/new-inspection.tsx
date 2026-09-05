@@ -20,11 +20,18 @@ import {
   MapPin,
   Sparkles,
   Plus,
+  Type,
+  ShieldAlert,
+  Check,
+  Eye,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CATEGORIES, STATES, DECLARATION_TEMPLATE } from '@/lib/data'
 import { cn } from '@/lib/utils'
 import { generateInspectionPDF } from '@/lib/pdf-report'
+import { LabelInspector } from '@/components/inspection/label-inspector'
+import { PdfViewerModal } from '@/components/inspection/pdf-modal'
+import { saveInspectionDraft, loadInspectionDraft, clearInspectionDraft } from '@/lib/inspection-draft'
 import type { AnalysisResult, AnalysisField, Inspection } from '@/lib/types'
 
 type Step = 'capture' | 'scanning' | 'result'
@@ -137,6 +144,86 @@ export function NewInspection() {
   const [savedInspection, setSavedInspection] = useState<Inspection | null>(null)
   const [isSaved, setIsSaved] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
+  const [isViewingPdf, setIsViewingPdf] = useState(false)
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false)
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
+  const [isDraftRestored, setIsDraftRestored] = useState(false)
+
+  // Restore draft progress on page reload/refresh
+  useEffect(() => {
+    let active = true
+    loadInspectionDraft().then((draft) => {
+      if (!active || !draft) {
+        setIsDraftRestored(true)
+        return
+      }
+
+      if (draft.step === 'result' && draft.result) {
+        setResult(draft.result)
+        setStep('result')
+      } else if (draft.step === 'capture') {
+        setStep('capture')
+      } else if (draft.step === 'scanning') {
+        setStep('capture')
+      }
+
+      if (draft.image) setImage(draft.image)
+      if (draft.extraImages && draft.extraImages.length > 0) setExtraImages(draft.extraImages)
+      if (draft.category) setCategory(draft.category)
+      if (draft.batchNumber) setBatchNumber(draft.batchNumber)
+      if (draft.state) setState(draft.state)
+      if (draft.notes) setNotes(draft.notes)
+      if (draft.productLink) setProductLink(draft.productLink)
+      if (draft.savedInspection) setSavedInspection(draft.savedInspection)
+      if (draft.isSaved) setIsSaved(draft.isSaved)
+
+      setIsDraftRestored(true)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  // Auto-persist draft progress across state changes
+  useEffect(() => {
+    if (!isDraftRestored) return
+
+    const timer = setTimeout(() => {
+      if (!image && !result && !batchNumber && !notes && !productLink && step === 'capture') {
+        return
+      }
+
+      saveInspectionDraft({
+        step,
+        image,
+        extraImages,
+        category,
+        batchNumber,
+        state,
+        notes,
+        productLink,
+        result,
+        savedInspection,
+        isSaved,
+      })
+    }, 250)
+
+    return () => clearTimeout(timer)
+  }, [
+    isDraftRestored,
+    step,
+    image,
+    extraImages,
+    category,
+    batchNumber,
+    state,
+    notes,
+    productLink,
+    result,
+    savedInspection,
+    isSaved,
+  ])
 
   const [stateOptions, setStateOptions] = useState<string[]>(STATES)
   const [geoCoords, setGeoCoords] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null)
@@ -586,9 +673,11 @@ export function NewInspection() {
   }
 
   const reset = () => {
+    clearInspectionDraft()
     setImage(null)
     setImageFile(null)
     setFileName('')
+    setExtraImages([])
     setBatchNumber('')
     setNotes('')
     setProductLink('')
@@ -1143,138 +1232,238 @@ export function NewInspection() {
               </div>
             </div>
 
+            {/* Readability & Quality Assessment Banner */}
+            {result.readability && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-white px-4 py-3 shadow-xs animate-[fadeIn_0.3s_ease-out_forwards]">
+                <div className="flex items-center gap-2.5">
+                  <span
+                    className={cn(
+                      'flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                      result.readability.status === 'pass'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : result.readability.status === 'warning'
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-rose-100 text-rose-800'
+                    )}
+                  >
+                    {result.readability.status === 'pass' ? <Check className="size-3.5" /> : '!'}
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-semibold text-foreground">
+                        Packaging Readability & Print Quality:{' '}
+                        <span className="uppercase">{result.readability.status}</span>
+                      </p>
+                      {result.readability.contrastAdequate ? (
+                        <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
+                          Adequate Contrast
+                        </span>
+                      ) : (
+                        <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium text-rose-700">
+                          Low Contrast Warning
+                        </span>
+                      )}
+                      {result.readability.glareOrBlurDetected && (
+                        <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                          Glare / Blur Detected
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">{result.readability.notes}</p>
+                  </div>
+                </div>
+                <div className="text-[11px] font-mono text-muted-foreground">
+                  LMPC Rule 9 / Rule 14 Verification
+                </div>
+              </div>
+            )}
+
             {/* Two Columns */}
             <div className="grid gap-8 lg:grid-cols-10 items-start animate-[fadeIn_0.4s_ease-out_forwards]">
-              {/* Left Column - Image or URL summary */}
+              {/* Left Column - Label Inspector with Bounding Boxes */}
               <div className="lg:col-span-5 space-y-4">
-                <div className="relative border border-border rounded-lg overflow-hidden bg-white flex items-center justify-center p-4 shadow-sm">
-                  {image ? (
-                    <div className="relative max-h-[450px]">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={image}
-                        alt="Scanned product label"
-                        className="max-h-[450px] w-auto object-contain rounded"
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-3 text-center py-12">
-                      <LinkIcon className="size-10 text-muted-foreground/50" strokeWidth={1.5} />
-                      <p className="text-sm font-medium text-foreground">E-commerce Listing Analysis</p>
-                      <p className="text-xs text-muted-foreground max-w-xs break-all">{productLink}</p>
-                    </div>
-                  )}
-                </div>
+                {image ? (
+                  <LabelInspector
+                    image={image}
+                    fields={result.fields}
+                    activeKey={activeKey}
+                    onHover={setActiveKey}
+                  />
+                ) : (
+                  <div className="relative border border-border rounded-lg overflow-hidden bg-white flex flex-col items-center gap-3 text-center py-12 p-4 shadow-sm">
+                    <LinkIcon className="size-10 text-muted-foreground/50" strokeWidth={1.5} />
+                    <p className="text-sm font-medium text-foreground">E-commerce Listing Analysis</p>
+                    <p className="text-xs text-muted-foreground max-w-xs break-all">{productLink}</p>
+                  </div>
+                )}
 
                 {/* Action Buttons */}
                 <div className="flex flex-col gap-2.5">
-                  <div className="flex items-center gap-2.5">
-                    {/* Download PDF (Primary CTA) */}
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (!result) return
-                        const allImages = image ? [image, ...extraImages] : []
-                        const inspection: Inspection = savedInspection ? {
-                          ...savedInspection,
-                          images: allImages.length > 0 ? allImages : [savedInspection.image],
-                          timestamp: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-IN') + ' IST',
-                          inspectorEmployeeId: 'INS-2026-8942',
-                        } : {
-                          id: 'INSP-' + Math.floor(100000 + Math.random() * 900000),
-                          productName: result.productName,
-                          manufacturer: result.manufacturer,
-                          category: result.category,
-                          score: result.score,
-                          status: result.status,
-                          date: new Date().toISOString().slice(0, 10),
-                          state,
-                          batchNumber,
-                          inspectorId: '',
-                          inspectorName: 'Legal Metrology Inspector',
-                          inspectorEmployeeId: 'INS-2026-8942',
-                          image: image ?? '/placeholder.svg',
-                          images: allImages,
-                          sourceType: result.sourceType,
-                          productLink: productLink || null,
-                          notes,
-                          timestamp: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-IN') + ' IST',
-                          fields: result.fields.map((f, idx) => ({
-                            ...f,
-                            box: DECLARATION_TEMPLATE[idx]?.box ?? { x: 0, y: 0, w: 0, h: 0 },
-                          })),
-                        }
-                        await generateInspectionPDF(inspection)
-                      }}
-                      className="flex-1 h-10 rounded-lg bg-primary text-white hover:bg-primary/95 font-semibold text-xs md:text-sm transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <Download className="size-4" /> Download PDF Report
-                    </button>
+                  {(() => {
+                    const getInspectionPayload = (): Inspection | null => {
+                      if (!result) return null
+                      const allImages = image ? [image, ...extraImages] : []
+                      return savedInspection ? {
+                        ...savedInspection,
+                        images: allImages.length > 0 ? allImages : [savedInspection.image],
+                        timestamp: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-IN') + ' IST',
+                        inspectorEmployeeId: 'INS-2026-8942',
+                      } : {
+                        id: 'INSP-' + Math.floor(100000 + Math.random() * 900000),
+                        productName: result.productName,
+                        manufacturer: result.manufacturer,
+                        category: result.category,
+                        score: result.score,
+                        status: result.status,
+                        date: new Date().toISOString().slice(0, 10),
+                        state,
+                        batchNumber,
+                        inspectorId: '',
+                        inspectorName: 'Legal Metrology Inspector',
+                        inspectorEmployeeId: 'INS-2026-8942',
+                        image: image ?? '/placeholder.svg',
+                        images: allImages,
+                        sourceType: result.sourceType,
+                        productLink: productLink || null,
+                        notes,
+                        timestamp: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-IN') + ' IST',
+                        readability: result.readability,
+                        fields: result.fields.map((f, idx) => ({
+                          ...f,
+                          box: (f.box && f.box.w > 0) ? f.box : (DECLARATION_TEMPLATE[idx]?.box ?? { x: 0, y: 0, w: 0, h: 0 }),
+                        })),
+                      }
+                    }
 
-                    {/* Save Report Button */}
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (!result) return
-                        setIsSaving(true)
-                        try {
-                          const res = await fetch('/api/inspections', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              productName: result.productName,
-                              manufacturer: result.manufacturer,
-                              category: result.category,
-                              score: result.score,
-                              status: result.status,
-                              sourceType: result.sourceType,
-                              fields: result.fields,
-                              batchNumber,
-                              state,
-                              notes,
-                              image,
-                              productLink: productLink || null,
-                            }),
-                          })
-                          const data = (await res.json()) as { ok: boolean; inspection?: Inspection; error?: string }
-                          if (!res.ok || !data.ok || !data.inspection) {
-                            alert(data.error ?? 'Could not save the inspection.')
-                            return
-                          }
-                          setSavedInspection(data.inspection)
-                          setIsSaved(true)
-                        } catch {
-                          alert('Could not save the inspection. Please try again.')
-                        } finally {
-                          setIsSaving(false)
-                        }
-                      }}
-                      disabled={isSaved || isSaving}
-                      className={cn(
-                        'h-10 px-4 rounded-lg font-medium text-xs md:text-sm border transition-all flex items-center justify-center gap-1.5 cursor-pointer',
-                        isSaved
-                          ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                          : 'border-border bg-background hover:bg-muted text-foreground'
-                      )}
-                    >
-                      {isSaved ? (
-                        <><CheckCircle2 className="size-4 text-emerald-600" /> Saved</>
-                      ) : isSaving ? (
-                        <><Save className="size-4" /> Saving…</>
-                      ) : (
-                        <><Save className="size-4" /> Save</>
-                      )}
-                    </button>
-                  </div>
+                    return (
+                      <div className="flex flex-col gap-2">
+                        {/* Primary Row: View Report & Download PDF (Always Side by Side) */}
+                        <div className="grid grid-cols-2 gap-2">
+                          {/* View Report in Popup Modal (Light Soft Blue) */}
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const inspection = getInspectionPayload()
+                              if (!inspection) return
+                              setIsViewingPdf(true)
+                              setIsPdfModalOpen(true)
+                              try {
+                                const blobUrl = await generateInspectionPDF(inspection, 'view')
+                                setPdfPreviewUrl(blobUrl)
+                              } catch (err) {
+                                console.error(err)
+                                alert('Could not generate PDF preview.')
+                              } finally {
+                                setIsViewingPdf(false)
+                              }
+                            }}
+                            disabled={isViewingPdf || isGeneratingPdf}
+                            className="h-10 px-2 rounded-lg bg-sky-50 hover:bg-sky-100/90 text-sky-700 border border-sky-200/90 font-semibold text-xs md:text-sm transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                          >
+                            {isViewingPdf ? (
+                              <><Loader2 className="size-4 shrink-0 animate-spin" /> <span className="truncate">Preparing…</span></>
+                            ) : (
+                              <><Eye className="size-4 shrink-0" /> <span className="truncate">View Report</span></>
+                            )}
+                          </button>
 
-                  {/* Secondary Action: Scan Another */}
-                  <button
-                    type="button"
-                    onClick={reset}
-                    className="h-9 w-full rounded-lg border border-border/80 bg-muted/20 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <RefreshCw className="size-3.5" /> Scan Another Product
-                  </button>
+                          {/* Download PDF Button */}
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const inspection = getInspectionPayload()
+                              if (!inspection) return
+                              setIsGeneratingPdf(true)
+                              try {
+                                await generateInspectionPDF(inspection, 'download')
+                              } finally {
+                                setIsGeneratingPdf(false)
+                              }
+                            }}
+                            disabled={isGeneratingPdf || isViewingPdf}
+                            className="h-10 px-2 rounded-lg bg-primary text-white hover:bg-primary/95 font-semibold text-xs md:text-sm transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                          >
+                            {isGeneratingPdf ? (
+                              <><Loader2 className="size-4 shrink-0 animate-spin" /> <span className="truncate">Generating…</span></>
+                            ) : (
+                              <><Download className="size-4 shrink-0" /> <span className="truncate">Download PDF Report</span></>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Secondary Row: Save & Scan Another */}
+                        <div className="flex items-center gap-2">
+                          {/* Save Report Button */}
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!result) return
+                              setIsSaving(true)
+                              try {
+                                const res = await fetch('/api/inspections', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    productName: result.productName,
+                                    manufacturer: result.manufacturer,
+                                    category: result.category,
+                                    score: result.score,
+                                    status: result.status,
+                                    sourceType: result.sourceType,
+                                    fields: result.fields.map((f, idx) => ({
+                                      ...f,
+                                      box: (f.box && f.box.w > 0) ? f.box : (DECLARATION_TEMPLATE[idx]?.box ?? { x: 0, y: 0, w: 0, h: 0 }),
+                                    })),
+                                    batchNumber,
+                                    state,
+                                    notes,
+                                    image,
+                                    productLink: productLink || null,
+                                  }),
+                                })
+
+                                const data = (await res.json()) as { ok: boolean; inspection?: Inspection; error?: string }
+                                if (!res.ok || !data.ok || !data.inspection) {
+                                  alert(data.error ?? 'Could not save the inspection.')
+                                  return
+                                }
+                                setSavedInspection(data.inspection)
+                                setIsSaved(true)
+                              } catch {
+                                alert('Could not save the inspection. Please try again.')
+                              } finally {
+                                setIsSaving(false)
+                              }
+                            }}
+                            disabled={isSaved || isSaving}
+                            className={cn(
+                              'flex-1 h-9 px-4 rounded-lg font-medium text-xs md:text-sm border transition-all flex items-center justify-center gap-1.5 cursor-pointer',
+                              isSaved
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                : 'border-border bg-background hover:bg-muted text-foreground'
+                            )}
+                          >
+                            {isSaved ? (
+                              <><CheckCircle2 className="size-4 text-emerald-600" /> Saved</>
+                            ) : isSaving ? (
+                              <><Save className="size-4" /> Saving…</>
+                            ) : (
+                              <><Save className="size-4" /> Save</>
+                            )}
+                          </button>
+
+                          {/* Secondary Action: Scan Another */}
+                          <button
+                            type="button"
+                            onClick={reset}
+                            className="flex-1 h-9 rounded-lg border border-border/80 bg-muted/20 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <RefreshCw className="size-3.5" /> Scan Another Product
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
 
@@ -1325,11 +1514,43 @@ export function NewInspection() {
                                   {f.severity}
                                 </span>
                               )}
+                              {f.misleadingFlags?.isMisleading && (
+                                <span className="inline-flex items-center gap-1 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-purple-900">
+                                  <ShieldAlert className="size-3" /> Misleading
+                                </span>
+                              )}
+                              {f.fontSizeCompliance && (
+                                <span
+                                  className={cn(
+                                    'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium',
+                                    f.fontSizeCompliance.status === 'compliant'
+                                      ? 'bg-slate-100 text-slate-700'
+                                      : 'bg-amber-100 text-amber-900 font-semibold'
+                                  )}
+                                  title={f.fontSizeCompliance.assessment}
+                                >
+                                  <Type className="size-3" />
+                                  {f.fontSizeCompliance.status === 'compliant' ? 'Font OK' : 'Font Warning'}
+                                  {f.fontSizeCompliance.isBold && ' · Bold'}
+                                </span>
+                              )}
                             </div>
 
                             <p className="text-xs italic text-slate-400 mt-0.5">
                               {f.extracted ? `"${f.extracted}"` : 'Not detected on label'}
                             </p>
+
+                            {f.fontSizeCompliance?.assessment && f.fontSizeCompliance.status !== 'compliant' && (
+                              <p className="text-xs text-amber-800 mt-1 font-medium bg-amber-50 rounded p-1.5 border border-amber-200/60">
+                                📏 Font Rule: {f.fontSizeCompliance.assessment}
+                              </p>
+                            )}
+
+                            {f.misleadingFlags?.isMisleading && f.misleadingFlags.reason && (
+                              <p className="text-xs text-purple-950 mt-1 font-medium bg-purple-50 rounded p-1.5 border border-purple-200">
+                                ⚠️ Misleading: {f.misleadingFlags.reason}
+                              </p>
+                            )}
 
                             {f.explanation && (
                               <p className="text-xs font-normal text-slate-600 mt-1 leading-relaxed">
@@ -1366,6 +1587,49 @@ export function NewInspection() {
           </div>
         )}
       </div>
+
+      {/* In-Browser PDF Viewer Popup Component */}
+      <PdfViewerModal
+        isOpen={isPdfModalOpen}
+        onClose={() => setIsPdfModalOpen(false)}
+        pdfUrl={pdfPreviewUrl}
+        productName={result?.productName}
+        onDownload={async () => {
+          if (!result) return
+          const allImages = image ? [image, ...extraImages] : []
+          const inspection: Inspection = savedInspection ? {
+            ...savedInspection,
+            images: allImages.length > 0 ? allImages : [savedInspection.image],
+            timestamp: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-IN') + ' IST',
+            inspectorEmployeeId: 'INS-2026-8942',
+          } : {
+            id: 'INSP-' + Math.floor(100000 + Math.random() * 900000),
+            productName: result.productName,
+            manufacturer: result.manufacturer,
+            category: result.category,
+            score: result.score,
+            status: result.status,
+            date: new Date().toISOString().slice(0, 10),
+            state,
+            batchNumber,
+            inspectorId: '',
+            inspectorName: 'Legal Metrology Inspector',
+            inspectorEmployeeId: 'INS-2026-8942',
+            image: image ?? '/placeholder.svg',
+            images: allImages,
+            sourceType: result.sourceType,
+            productLink: productLink || null,
+            notes,
+            timestamp: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-IN') + ' IST',
+            readability: result.readability,
+            fields: result.fields.map((f, idx) => ({
+              ...f,
+              box: (f.box && f.box.w > 0) ? f.box : (DECLARATION_TEMPLATE[idx]?.box ?? { x: 0, y: 0, w: 0, h: 0 }),
+            })),
+          }
+          await generateInspectionPDF(inspection, 'download')
+        }}
+      />
     </div>
   )
 }
