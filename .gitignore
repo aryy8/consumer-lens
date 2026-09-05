@@ -15,3 +15,7 @@ node_modules
 .next/
 .DS_Store
 *.tsbuildinfo
+
+# Python
+__pycache__/
+*.pyc
