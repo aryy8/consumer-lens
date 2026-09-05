@@ -48,6 +48,7 @@ export interface NewInspectionPayload {
   state: string
   notes: string
   image: string | null
+  images?: string[] | null
   productLink: string | null
 }
 
@@ -232,6 +233,7 @@ export async function getInspectionsForUser(user: AuthUser): Promise<Inspection[
       inspectorId: users.employeeId,
       inspectorName: users.name,
       image: inspections.image,
+      images: inspections.images,
       sourceType: inspections.sourceType,
       productLink: inspections.productLink,
       notes: inspections.notes,
@@ -264,6 +266,7 @@ export async function getInspectionsForUser(user: AuthUser): Promise<Inspection[
     inspectorId: r.inspectorId ?? '',
     inspectorName: r.inspectorName ?? 'Unknown',
     image: r.image ?? '/placeholder.svg',
+    images: (r.images as string[]) ?? (r.image ? [r.image] : []),
     sourceType: (r.sourceType as 'image' | 'url') ?? 'image',
     productLink: r.productLink,
     notes: r.notes,
@@ -289,6 +292,7 @@ export async function getInspectionById(id: string): Promise<Inspection | null> 
       inspectorId: users.employeeId,
       inspectorName: users.name,
       image: inspections.image,
+      images: inspections.images,
       sourceType: inspections.sourceType,
       productLink: inspections.productLink,
       notes: inspections.notes,
@@ -314,6 +318,7 @@ export async function getInspectionById(id: string): Promise<Inspection | null> 
     inspectorId: r.inspectorId ?? '',
     inspectorName: r.inspectorName ?? 'Unknown',
     image: r.image ?? '/placeholder.svg',
+    images: (r.images as string[]) ?? (r.image ? [r.image] : []),
     sourceType: (r.sourceType as 'image' | 'url') ?? 'image',
     productLink: r.productLink,
     notes: r.notes,
@@ -336,6 +341,10 @@ export async function createInspection(
   }
   const date = new Date().toISOString().slice(0, 10)
 
+  const allImages = Array.isArray(payload.images) && payload.images.length > 0
+    ? payload.images
+    : (payload.image ? [payload.image] : [])
+
   const [insp] = await db
     .insert(inspections)
     .values({
@@ -349,7 +358,8 @@ export async function createInspection(
       batchNumber: payload.batchNumber,
       inspectorId: userId,
       sourceType: payload.sourceType,
-      image: payload.image,
+      image: payload.image || (allImages[0] ?? null),
+      images: allImages,
       productLink: payload.productLink,
       notes: payload.notes,
       fields: payload.fields as unknown as unknown[],
@@ -378,6 +388,7 @@ export async function createInspection(
     inspectorId: user.employeeId,
     inspectorName: user.name,
     image: insp.image ?? '/placeholder.svg',
+    images: (insp.images as string[]) ?? (insp.image ? [insp.image] : []),
     sourceType: (insp.sourceType as 'image' | 'url') ?? 'image',
     productLink: insp.productLink,
     notes: insp.notes,
@@ -544,6 +555,7 @@ export async function getDashboardData(user: AuthUser): Promise<DashboardData> {
           inspectorId: users.employeeId,
           inspectorName: users.name,
           image: inspections.image,
+          images: inspections.images,
           sourceType: inspections.sourceType,
           productLink: inspections.productLink,
           notes: inspections.notes,
@@ -588,6 +600,7 @@ export async function getDashboardData(user: AuthUser): Promise<DashboardData> {
     inspectorId: r.inspectorId ?? '',
     inspectorName: r.inspectorName ?? 'Unknown',
     image: r.image ?? '/placeholder.svg',
+    images: (r.images as string[]) ?? (r.image ? [r.image] : []),
     sourceType: (r.sourceType as 'image' | 'url') ?? 'image',
     productLink: r.productLink,
     notes: r.notes,

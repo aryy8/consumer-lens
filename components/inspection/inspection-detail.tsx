@@ -15,6 +15,12 @@ import type { Inspection } from '@/lib/types'
 
 export function InspectionDetail({ inspection }: { inspection: Inspection }) {
   const router = useRouter()
+  const allImages = (inspection.images && inspection.images.length > 0)
+    ? inspection.images
+    : (inspection.image ? [inspection.image] : [])
+  const [activeImageIndex, setActiveImageIndex] = useState(0)
+  const currentImage = allImages[activeImageIndex] || inspection.image
+
   const [activeKey, setActiveKey] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -104,11 +110,31 @@ export function InspectionDetail({ inspection }: { inspection: Inspection }) {
 
       <div className="lg:col-span-2 space-y-4">
         <LabelInspector
-          image={inspection.image}
+          image={currentImage}
           fields={inspection.fields}
           activeKey={activeKey}
           onHover={setActiveKey}
         />
+        {allImages.length > 1 && (
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            {allImages.map((imgSrc, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => setActiveImageIndex(idx)}
+                className={cn(
+                  'relative size-14 shrink-0 rounded-md overflow-hidden border-2 transition-all cursor-pointer',
+                  idx === activeImageIndex
+                    ? 'border-primary ring-2 ring-primary/20 shadow-xs'
+                    : 'border-border/60 opacity-60 hover:opacity-100'
+                )}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={imgSrc} alt={`Packaging photo ${idx + 1}`} className="size-full object-cover" />
+              </button>
+            ))}
+          </div>
+        )}
         <Panel className="p-4">
           <div className="flex items-center justify-between">
             <div>

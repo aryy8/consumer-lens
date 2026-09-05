@@ -24,6 +24,7 @@ import {
   ShieldAlert,
   Check,
   Eye,
+  Image as ImageIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CATEGORIES, STATES, DECLARATION_TEMPLATE } from '@/lib/data'
@@ -444,7 +445,7 @@ export function NewInspection() {
 
   // ---- URL Scraping ----
   const handleScrapeUrl = async () => {
-    if (!productLink) return
+    if (!productLink || isScraping) return
 
     setIsScraping(true)
     setScrapeError(null)
@@ -464,11 +465,96 @@ export function NewInspection() {
         return
       }
 
-      // Run analysis with scraped text
-      runUrlAnalysis(data.text, data.title)
+      // If images were extracted and no local image uploaded, set all gallery images
+      const allImgs: string[] = Array.isArray(data.images) && data.images.length > 0
+        ? data.images
+        : (data.image ? [data.image] : [])
+
+      if (allImgs.length > 0 && !image) {
+        setImage(allImgs[0])
+        if (allImgs.length > 1) {
+          setExtraImages(allImgs.slice(1))
+        }
+      }
+
+      if (data.title) {
+        setFileName(data.title)
+      }
+
+      // Run analysis with scraped text and ALL extracted packaging images
+      runUrlAnalysis(data.text, data.title, allImgs)
     } catch (err) {
       setScrapeError(`Network error: ${(err as Error).message}`)
       setIsScraping(false)
+    }
+  }
+
+  // ---- Robust SSE Stream Processor ----
+  const readSseResponse = async (
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+    onComplete: (res: AnalysisResult) => Promise<void> | void,
+    onFail: (err: string) => void
+  ) => {
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    const handleEventBlock = async (block: string) => {
+      let eventType = 'message'
+      let eventData = ''
+      for (const rawLine of block.split('\n')) {
+        const line = rawLine.trim()
+        if (line.startsWith('event:')) {
+          eventType = line.slice(6).trim()
+        } else if (line.startsWith('data:')) {
+          eventData = line.slice(5).trim()
+        }
+      }
+
+      if (eventData) {
+        try {
+          const parsed = JSON.parse(eventData)
+          if (eventType === 'progress') {
+            setTickerItems((prev) => {
+              const updated = prev.map((t) => ({ ...t, done: true }))
+              return [...updated, { text: parsed.message || 'Analyzing…', done: false }]
+            })
+          } else if (eventType === 'result') {
+            setTickerItems((prev) => prev.map((t) => ({ ...t, done: true })))
+            setResult(parsed as AnalysisResult)
+            if (parsed.images && Array.isArray(parsed.images) && parsed.images.length > 0) {
+              setImage(parsed.images[0])
+              if (parsed.images.length > 1) {
+                setExtraImages(parsed.images.slice(1))
+              }
+            }
+            await onComplete(parsed as AnalysisResult)
+          } else if (eventType === 'error') {
+            onFail(parsed.error || 'Analysis failed')
+          }
+        } catch (err) {
+          console.error('SSE JSON parse error:', err, eventData)
+        }
+      }
+    }
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+
+      let boundary: number
+      while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+        const block = buffer.slice(0, boundary)
+        buffer = buffer.slice(boundary + 2)
+        if (block.trim()) {
+          await handleEventBlock(block)
+        }
+      }
+    }
+
+    if (buffer.trim()) {
+      await handleEventBlock(buffer)
     }
   }
 
@@ -486,10 +572,14 @@ export function NewInspection() {
     if (imageFile) {
       formData.append('image', imageFile)
     } else if (image) {
-      // Convert base64 data URL to blob
       const res = await fetch(image)
       const blob = await res.blob()
       formData.append('image', blob, 'label.jpg')
+    }
+
+    const allImages = [image, ...extraImages].filter(Boolean) as string[]
+    if (allImages.length > 0) {
+      formData.append('images', JSON.stringify(allImages))
     }
 
     formData.append('category', category)
@@ -511,7 +601,6 @@ export function NewInspection() {
         return
       }
 
-      // Read SSE stream
       const reader = response.body?.getReader()
       if (!reader) {
         setError('Failed to read response stream')
@@ -519,74 +608,35 @@ export function NewInspection() {
         return
       }
 
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-
-        // Parse SSE events from buffer
-        const lines = buffer.split('\n')
-        buffer = ''
-
-        let eventType = ''
-        let eventData = ''
-
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            eventType = line.slice(7).trim()
-          } else if (line.startsWith('data: ')) {
-            eventData = line.slice(6).trim()
-          } else if (line === '' && eventType && eventData) {
-            // Process complete event
-            try {
-              const parsed = JSON.parse(eventData)
-
-              if (eventType === 'progress') {
-                setTickerItems((prev) => {
-                  const updated = prev.map((t) => ({ ...t, done: true }))
-                  return [...updated, { text: parsed.message, done: false }]
-                })
-              } else if (eventType === 'result') {
-                // Mark last ticker item as done
-                setTickerItems((prev) => prev.map((t) => ({ ...t, done: true })))
-                setResult(parsed as AnalysisResult)
-                // Short delay before showing result for animation
-                await new Promise((r) => setTimeout(r, 600))
-                setStep('result')
-              } else if (eventType === 'error') {
-                setError(parsed.error || 'Analysis failed')
-                setStep('capture')
-              }
-            } catch {
-              // Incomplete JSON, continue buffering
-            }
-
-            eventType = ''
-            eventData = ''
-          } else if (line !== '') {
-            // Incomplete event, keep in buffer
-            buffer += line + '\n'
-          }
+      await readSseResponse(
+        reader,
+        async () => {
+          await new Promise((r) => setTimeout(r, 600))
+          setStep('result')
+        },
+        (err) => {
+          setError(err)
+          setStep('capture')
         }
-      }
+      )
     } catch (err) {
       setError(`Network error: ${(err as Error).message}`)
       setStep('capture')
     }
-  }, [imageFile, image, category, batchNumber, state, notes])
+  }, [imageFile, image, extraImages, category, batchNumber, state, notes])
 
   // ---- Analysis (URL Flow) ----
-  const runUrlAnalysis = async (listingText: string, title: string) => {
+  const runUrlAnalysis = async (listingText: string, title: string, productImages?: string[] | null) => {
     setStep('scanning')
     setError(null)
     setResult(null)
     setTickerItems([])
     setIsScraping(false)
     setFileName(title || 'E-commerce Listing')
+
+    const allImagesToSend = (productImages && productImages.length > 0)
+      ? productImages
+      : (image ? [image, ...extraImages] : [])
 
     try {
       const response = await fetch('/api/analyze', {
@@ -595,6 +645,8 @@ export function NewInspection() {
         body: JSON.stringify({
           sourceType: 'url',
           listingText,
+          images: allImagesToSend,
+          productImageUrl: allImagesToSend[0] || null,
           category,
           batchNumber,
           state,
@@ -609,7 +661,6 @@ export function NewInspection() {
         return
       }
 
-      // Read SSE stream (same logic as image flow)
       const reader = response.body?.getReader()
       if (!reader) {
         setError('Failed to read response stream')
@@ -617,55 +668,17 @@ export function NewInspection() {
         return
       }
 
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-
-        const lines = buffer.split('\n')
-        buffer = ''
-
-        let eventType = ''
-        let eventData = ''
-
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            eventType = line.slice(7).trim()
-          } else if (line.startsWith('data: ')) {
-            eventData = line.slice(6).trim()
-          } else if (line === '' && eventType && eventData) {
-            try {
-              const parsed = JSON.parse(eventData)
-
-              if (eventType === 'progress') {
-                setTickerItems((prev) => {
-                  const updated = prev.map((t) => ({ ...t, done: true }))
-                  return [...updated, { text: parsed.message, done: false }]
-                })
-              } else if (eventType === 'result') {
-                setTickerItems((prev) => prev.map((t) => ({ ...t, done: true })))
-                setResult(parsed as AnalysisResult)
-                await new Promise((r) => setTimeout(r, 600))
-                setStep('result')
-              } else if (eventType === 'error') {
-                setError(parsed.error || 'Analysis failed')
-                setStep('capture')
-              }
-            } catch {
-              // continue
-            }
-
-            eventType = ''
-            eventData = ''
-          } else if (line !== '') {
-            buffer += line + '\n'
-          }
+      await readSseResponse(
+        reader,
+        async () => {
+          await new Promise((r) => setTimeout(r, 600))
+          setStep('result')
+        },
+        (err) => {
+          setError(err)
+          setStep('capture')
         }
-      }
+      )
     } catch (err) {
       setError(`Network error: ${(err as Error).message}`)
       setStep('capture')
@@ -983,7 +996,9 @@ export function NewInspection() {
 
                 {/* Product URL Input Field with inline Scan button */}
                 <label className="text-sm block">
-                  <span className="mb-1 block text-[13px] font-medium text-foreground">Product URL (Amazon / Flipkart)</span>
+                  <span className="mb-1 block text-[13px] font-medium text-foreground">
+                    Product URL (Amazon / amzn.in / Flipkart)
+                  </span>
                   <div className="relative flex items-center">
                     <LinkIcon className="absolute left-3 size-3.5 text-muted-foreground" />
                     <input
@@ -992,7 +1007,13 @@ export function NewInspection() {
                         setProductLink(e.target.value)
                         setScrapeError(null)
                       }}
-                      placeholder="https://amazon.in/dp/..."
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleScrapeUrl()
+                        }
+                      }}
+                      placeholder="e.g. https://amzn.in/d/... or amazon.in/dp/..."
                       className="h-10 w-full rounded-md border border-muted-foreground/30 bg-background pl-9 pr-16 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                     />
                     <button
@@ -1101,16 +1122,30 @@ export function NewInspection() {
                 {/* Full-width Solid Run Analysis Button */}
                 <div className="pt-6 mt-6 border-t border-border">
                   <button
-                    onClick={runAnalysis}
-                    disabled={!image}
+                    onClick={() => {
+                      if (image) {
+                        runAnalysis()
+                      } else if (productLink) {
+                        handleScrapeUrl()
+                      }
+                    }}
+                    disabled={(!image && !productLink) || isScraping}
                     className={cn(
                       'h-12 w-full rounded-md font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer',
-                      image
+                      (image || productLink) && !isScraping
                         ? 'bg-primary text-white hover:bg-primary/95 opacity-100 shadow-sm'
                         : 'bg-primary text-white opacity-40 cursor-not-allowed'
                     )}
                   >
-                    Run Analysis <ArrowRight className="size-4" />
+                    {isScraping ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" /> Fetching & Analyzing Listing…
+                      </>
+                    ) : (
+                      <>
+                        Run Analysis <ArrowRight className="size-4" />
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -1121,20 +1156,59 @@ export function NewInspection() {
         {/* STATE 2 — Analysis in Progress */}
         {step === 'scanning' && (
           <div className="grid gap-8 lg:grid-cols-5 items-start animate-[fadeIn_0.3s_ease-out_forwards]">
-            {/* Left Column - Uploaded Image or URL info */}
-            <div className="lg:col-span-3 border border-border rounded-lg overflow-hidden bg-white flex items-center justify-center p-0 shadow-sm min-h-[400px]">
-              {image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={image}
-                  alt="Product label preview"
-                  className="w-full max-h-[450px] object-contain rounded animate-[fadeIn_0.4s_ease-out]"
-                />
-              ) : (
-                <div className="flex flex-col items-center gap-3 text-center p-8">
-                  <LinkIcon className="size-12 text-muted-foreground/50" strokeWidth={1.5} />
-                  <p className="text-sm font-medium text-foreground">{fileName || 'Analyzing product listing...'}</p>
-                  <p className="text-xs text-muted-foreground max-w-xs">{productLink}</p>
+            {/* Left Column - Uploaded Image or URL info with Multi-Photo Gallery */}
+            <div className="lg:col-span-3 space-y-3">
+              <div className="relative border border-border rounded-lg overflow-hidden bg-white flex items-center justify-center p-0 shadow-sm min-h-[380px]">
+                {image ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={image}
+                      alt="Product label preview"
+                      className="w-full max-h-[430px] object-contain rounded animate-[fadeIn_0.4s_ease-out]"
+                    />
+                    {[image, ...extraImages].filter(Boolean).length > 1 && (
+                      <div className="absolute top-3 left-3 bg-neutral-900/85 text-white text-xs font-medium px-3 py-1.5 rounded-full backdrop-blur-xs flex items-center gap-2 shadow-md">
+                        <span className="size-2 rounded-full bg-emerald-400 animate-ping" />
+                        Scanning all {[image, ...extraImages].filter(Boolean).length} packaging photos
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center gap-3 text-center p-8">
+                    <LinkIcon className="size-12 text-muted-foreground/50" strokeWidth={1.5} />
+                    <p className="text-sm font-medium text-foreground">{fileName || 'Analyzing product listing...'}</p>
+                    <p className="text-xs text-muted-foreground max-w-xs">{productLink}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Multi-Photo Thumbnails */}
+              {[image, ...extraImages].filter((x): x is string => Boolean(x)).length > 1 && (
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {[image, ...extraImages].filter((x): x is string => Boolean(x)).map((imgSrc, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        const all = [image, ...extraImages].filter((x): x is string => Boolean(x))
+                        const chosen = all[idx]
+                        const remaining = all.filter((_, i) => i !== idx)
+                        setImage(chosen)
+                        setExtraImages(remaining)
+                      }}
+                      className={cn(
+                        'relative size-14 shrink-0 rounded-md overflow-hidden border-2 transition-all cursor-pointer',
+                        idx === 0 ? 'border-primary ring-2 ring-primary/20 shadow-xs' : 'border-border/60 opacity-60 hover:opacity-100'
+                      )}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={imgSrc} alt={`Packaging angle ${idx + 1}`} className="size-full object-cover" />
+                      <div className="absolute bottom-0 inset-x-0 bg-neutral-900/80 text-[9px] text-white text-center py-0.5 font-mono">
+                        #{idx + 1}
+                      </div>
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
@@ -1297,6 +1371,56 @@ export function NewInspection() {
                   </div>
                 )}
 
+                {/* Multi-Photo Gallery Selector (Step 3) */}
+                {(() => {
+                  const allPhotos = (result.images && result.images.length > 0)
+                    ? result.images
+                    : [image, ...extraImages].filter((x): x is string => Boolean(x))
+                  if (allPhotos.length <= 1) return null
+
+                  return (
+                    <div className="space-y-2 rounded-xl border border-border bg-white p-3 shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                          <ImageIcon className="size-3.5 text-primary" />
+                          Inspected Packaging Photos ({allPhotos.length} photos)
+                        </span>
+                        <span className="text-[11px] text-muted-foreground font-medium">Click to inspect angle</span>
+                      </div>
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5">
+                        {allPhotos.map((imgSrc, idx) => {
+                          const isCurrent = (image === imgSrc) || (!image && idx === 0)
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                setImage(imgSrc)
+                                setExtraImages(allPhotos.filter((x) => x !== imgSrc))
+                              }}
+                              className={cn(
+                                'relative size-16 shrink-0 rounded-lg overflow-hidden border-2 transition-all cursor-pointer group',
+                                isCurrent
+                                  ? 'border-primary ring-2 ring-primary/20 shadow-sm'
+                                  : 'border-border/60 opacity-60 hover:opacity-100 hover:border-border'
+                              )}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={imgSrc} alt={`Packaging photo ${idx + 1}`} className="size-full object-cover" />
+                              <span className={cn(
+                                'absolute bottom-0 inset-x-0 text-[9px] text-center py-0.5 font-semibold transition-colors',
+                                isCurrent ? 'bg-primary text-white' : 'bg-black/60 text-white'
+                              )}>
+                                #{idx + 1}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })()}
+
                 {/* Action Buttons */}
                 <div className="flex flex-col gap-2.5">
                   {(() => {
@@ -1400,6 +1524,8 @@ export function NewInspection() {
                               if (!result) return
                               setIsSaving(true)
                               try {
+                                const allImages = [image, ...extraImages].filter(Boolean) as string[]
+                                const finalImages = allImages.length > 0 ? allImages : (result.images || [])
                                 const res = await fetch('/api/inspections', {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },
@@ -1417,7 +1543,8 @@ export function NewInspection() {
                                     batchNumber,
                                     state,
                                     notes,
-                                    image,
+                                    image: finalImages[0] || image || null,
+                                    images: finalImages,
                                     productLink: productLink || null,
                                   }),
                                 })

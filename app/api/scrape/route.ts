@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 const SUPPORTED_DOMAINS = [
   'amazon.in',
   'amazon.com',
+  'amzn.in',
+  'amzn.to',
   'flipkart.com',
   'myntra.com',
   'jiomart.com',
@@ -14,11 +16,19 @@ const SUPPORTED_DOMAINS = [
 ]
 
 const USER_AGENT =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+
+function normalizeUrl(inputUrl: string): string {
+  let trimmed = inputUrl.trim()
+  if (!/^https?:\/\//i.test(trimmed)) {
+    trimmed = `https://${trimmed}`
+  }
+  return trimmed
+}
 
 function extractDomain(url: string): string | null {
   try {
-    const parsed = new URL(url)
+    const parsed = new URL(normalizeUrl(url))
     const host = parsed.hostname.replace(/^www\./, '')
     return host
   } catch {
@@ -44,6 +54,8 @@ function stripHtml(html: string): string {
   text = text.replace(/&gt;/g, '>')
   text = text.replace(/&quot;/g, '"')
   text = text.replace(/&#039;/g, "'")
+  text = text.replace(/&apos;/g, "'")
+  text = text.replace(/&#x27;/g, "'")
   text = text.replace(/&nbsp;/g, ' ')
   text = text.replace(/&#x20B9;/g, '₹')
   text = text.replace(/&#8377;/g, '₹')
@@ -60,9 +72,79 @@ function stripHtml(html: string): string {
 function extractTitle(html: string): string {
   const titleMatch = html.match(/<title[^>]*>(.*?)<\/title>/i)
   if (titleMatch) {
-    return titleMatch[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim()
+    let clean = titleMatch[1]
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&#x27;/g, "'")
+      .replace(/&#039;/g, "'")
+      .trim()
+    // Remove site suffixes like : Amazon.in
+    clean = clean.split(' : Amazon')[0].split(' | Flipkart')[0].trim()
+    return clean
   }
-  return 'Unknown Product'
+  return 'E-commerce Product'
+}
+
+/** Extract all product images from Amazon or Flipkart page */
+function extractProductImages(html: string): string[] {
+  const images: string[] = []
+
+  // 1. Amazon colorImages JSON block (contains the full product gallery)
+  const colorImagesMatch = html.match(/'initial'\s*:\s*(?:A\.\$\.parseJSON\('([^']+)'\)|(\[[^\]]+\]))/i)
+  if (colorImagesMatch) {
+    try {
+      const raw = colorImagesMatch[1] || colorImagesMatch[2]
+      const list = JSON.parse(raw)
+      if (Array.isArray(list)) {
+        for (const item of list) {
+          const src = item.hiRes || item.large || (item.main ? Object.keys(item.main)[0] : null)
+          if (src && src.startsWith('http') && !images.includes(src)) {
+            images.push(src)
+          }
+        }
+      }
+    } catch {
+      // ignore parse error, fallback to regexes
+    }
+  }
+
+  // 2. If colorImages didn't find all images, check hiRes and landingImage
+  if (images.length === 0) {
+    const hiResMatch = html.match(/"hiRes":"(https:\/\/[^"]+media-amazon\.com[^"]+)"/i)
+    if (hiResMatch?.[1] && !images.includes(hiResMatch[1])) images.push(hiResMatch[1])
+
+    const largeMatch = html.match(/"large":"(https:\/\/[^"]+media-amazon\.com[^"]+)"/i)
+    if (largeMatch?.[1] && !images.includes(largeMatch[1])) images.push(largeMatch[1])
+
+    const landingImgMatch = html.match(/id="landingImage"[^>]*data-old-hires="([^"]+)"/i)
+    if (landingImgMatch?.[1] && landingImgMatch[1].startsWith('http') && !images.includes(landingImgMatch[1])) {
+      images.push(landingImgMatch[1])
+    }
+
+    const landingSrcMatch = html.match(/id="landingImage"[^>]*src="([^"]+)"/i)
+    if (landingSrcMatch?.[1] && landingSrcMatch[1].startsWith('http') && !images.includes(landingSrcMatch[1])) {
+      images.push(landingSrcMatch[1])
+    }
+  }
+
+  // 3. Flipkart image list or OpenGraph fallback
+  if (images.length === 0) {
+    const flipkartImgMatches = [...html.matchAll(/class="[^"]*_0DkuPH[^"]*"[^>]*src="([^"]+)"/gi)]
+    for (const m of flipkartImgMatches) {
+      if (m[1] && m[1].startsWith('http') && !images.includes(m[1])) {
+        images.push(m[1])
+      }
+    }
+
+    const ogImg = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ||
+                  html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
+    if (ogImg?.[1] && ogImg[1].startsWith('http') && !images.includes(ogImg[1])) {
+      images.push(ogImg[1])
+    }
+  }
+
+  return images
 }
 
 /** Extract structured product info from Amazon pages */
@@ -143,29 +225,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 })
     }
 
-    const domain = extractDomain(url)
+    const targetUrl = normalizeUrl(url)
+    const domain = extractDomain(targetUrl)
     if (!domain) {
       return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 })
     }
 
-    const isSupported = SUPPORTED_DOMAINS.some((d) => domain.endsWith(d))
+    const isSupported = SUPPORTED_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`))
     if (!isSupported) {
       return NextResponse.json(
-        { error: `Unsupported domain: ${domain}. Supported: ${SUPPORTED_DOMAINS.join(', ')}` },
+        { error: `Unsupported domain: ${domain}. Supported domains include: amazon.in, amzn.in, flipkart.com, blinkit.com, etc.` },
         { status: 400 }
       )
     }
 
-    // Fetch the page with retries
+    // Fetch the page with retries and automatic redirect following
     let html = ''
     let lastError: Error | null = null
+    let resolvedUrl = targetUrl
 
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const controller = new AbortController()
         const timeout = setTimeout(() => controller.abort(), 15000)
 
-        const response = await fetch(url, {
+        const response = await fetch(targetUrl, {
           headers: {
             'User-Agent': USER_AGENT,
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -183,6 +267,7 @@ export async function POST(req: NextRequest) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`)
         }
 
+        resolvedUrl = response.url || targetUrl
         html = await response.text()
         lastError = null
         break
@@ -197,17 +282,20 @@ export async function POST(req: NextRequest) {
     if (lastError || !html) {
       return NextResponse.json(
         {
-          error: `Failed to fetch the page. ${lastError?.message || 'Empty response'}. Try uploading a screenshot of the product listing instead.`,
+          error: `Failed to fetch product listing: ${lastError?.message || 'Empty response'}. Please verify the link or try another.`,
         },
         { status: 502 }
       )
     }
 
+    // Determine domain from resolved URL (e.g. amzn.in redirects to amazon.in)
+    const finalDomain = extractDomain(resolvedUrl) || domain
+
     // Extract structured data based on domain
     let extractedText = ''
-    if (domain.includes('amazon')) {
+    if (finalDomain.includes('amazon') || domain.includes('amzn')) {
       extractedText = extractAmazonData(html)
-    } else if (domain.includes('flipkart')) {
+    } else if (finalDomain.includes('flipkart')) {
       extractedText = extractFlipkartData(html)
     }
 
@@ -217,9 +305,11 @@ export async function POST(req: NextRequest) {
     }
 
     const title = extractTitle(html)
+    const images = extractProductImages(html)
+    const image = images.length > 0 ? images[0] : null
 
     // Truncate to a reasonable size for the AI model
-    const maxLength = 12000
+    const maxLength = 14000
     if (extractedText.length > maxLength) {
       extractedText = extractedText.slice(0, maxLength) + '\n\n[... content truncated ...]'
     }
@@ -227,7 +317,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       text: extractedText,
       title,
-      domain,
+      image,
+      images,
+      domain: finalDomain,
+      resolvedUrl,
     })
   } catch (err) {
     console.error('Scrape error:', err)
