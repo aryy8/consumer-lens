@@ -28,6 +28,24 @@ export interface Officer {
   violationsFound: number
 }
 
+export interface ReadabilityReport {
+  status: 'pass' | 'warning' | 'fail'
+  contrastAdequate: boolean
+  glareOrBlurDetected?: boolean
+  notes: string
+}
+
+export interface FontSizeCompliance {
+  status: 'compliant' | 'violation' | 'warning'
+  isBold?: boolean
+  assessment: string
+}
+
+export interface MisleadingFlag {
+  isMisleading: boolean
+  reason: string | null
+}
+
 export interface DeclarationField {
   key: string
   label: string
@@ -36,8 +54,10 @@ export interface DeclarationField {
   rule: string
   severity: ViolationSeverity | null
   explanation: string | null
-  /** bounding box in percentage coordinates over the product image */
+  /** bounding box in percentage coordinates over the product image (0-100) */
   box: { x: number; y: number; w: number; h: number }
+  fontSizeCompliance?: FontSizeCompliance | null
+  misleadingFlags?: MisleadingFlag | null
 }
 
 export interface Inspection {
@@ -52,11 +72,17 @@ export interface Inspection {
   batchNumber: string
   inspectorId: string
   inspectorName: string
+  inspectorEmployeeId?: string
   image: string
+  images?: string[]
   sourceType: 'image' | 'url'
   productLink: string | null
   notes: string
   fields: DeclarationField[]
+  readability?: ReadabilityReport | null
+  coordinates?: { lat: number; lng: number; accuracy?: number; address?: string } | string
+  timestamp?: string
+  evidenceHash?: string
 }
 
 export interface ProductRecord {
@@ -88,6 +114,10 @@ export interface AnalysisField {
   severity: ViolationSeverity | null
   extracted: string | null
   explanation: string | null
+  box?: { x: number; y: number; w: number; h: number }
+  box_2d?: [number, number, number, number] | null
+  fontSizeCompliance?: FontSizeCompliance | null
+  misleadingFlags?: MisleadingFlag | null
 }
 
 export interface AnalysisResult {
@@ -98,4 +128,6 @@ export interface AnalysisResult {
   status: ComplianceStatus
   sourceType: 'image' | 'url'
   fields: AnalysisField[]
+  readability?: ReadabilityReport | null
 }
+

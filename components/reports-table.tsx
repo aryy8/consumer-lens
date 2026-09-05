@@ -33,13 +33,35 @@ export function ReportsTable({ reports }: { reports: ReportRecord[] }) {
       }
       const data = (await res.json()) as { inspection: Inspection | null }
       if (data.inspection) {
-        generateInspectionPDF(data.inspection)
+        await generateInspectionPDF(data.inspection)
       } else {
         alert('Inspection details not found.')
       }
     } catch {
       alert('Could not load this report.')
     }
+  }
+
+  function handleExportCSV() {
+    const headers = ['Report ID', 'Inspection ID', 'Product', 'Inspector', 'Date', 'Score', 'Status']
+    const rows = filtered.map((r) => [
+      `"${r.id}"`,
+      `"${r.inspectionId}"`,
+      `"${(r.product || '').replace(/"/g, '""')}"`,
+      `"${(r.inspector || '').replace(/"/g, '""')}"`,
+      `"${r.date}"`,
+      r.score,
+      `"${r.status}"`,
+    ])
+    const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `LMPC_Compliance_Reports_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   return (
@@ -55,7 +77,7 @@ export function ReportsTable({ reports }: { reports: ReportRecord[] }) {
             { value: 'non-compliant', label: 'Non-Compliant' },
           ]}
         />
-        <Button variant="outline" className="gap-1.5 sm:ml-auto">
+        <Button variant="outline" onClick={handleExportCSV} className="gap-1.5 sm:ml-auto cursor-pointer">
           <Download className="size-4" /> Export CSV
         </Button>
       </div>
