@@ -16,11 +16,8 @@ node_modules
 .DS_Store
 *.tsbuildinfo
 
-<<<<<<< HEAD
 deploy.md
 .env.yaml
-=======
 # Python
 __pycache__/
 *.pyc
->>>>>>> 236ad78ba521755d3a847dda9fcb8cd88aabaebc
