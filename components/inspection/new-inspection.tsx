@@ -1556,8 +1556,8 @@ export function NewInspection() {
                                 }
                                 setSavedInspection(data.inspection)
                                 setIsSaved(true)
-                              } catch {
-                                alert('Could not save the inspection. Please try again.')
+                              } catch (err) {
+                                alert(`Could not save the inspection: ${(err as Error).message}`)
                               } finally {
                                 setIsSaving(false)
                               }
