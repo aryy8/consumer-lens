@@ -48,6 +48,7 @@ export interface NewInspectionPayload {
   state: string
   notes: string
   image: string | null
+  images?: string[] | null
   productLink: string | null
 }
 
@@ -232,6 +233,7 @@ export async function getInspectionsForUser(user: AuthUser): Promise<Inspection[
       inspectorId: users.employeeId,
       inspectorName: users.name,
       image: inspections.image,
+      images: inspections.images,
       sourceType: inspections.sourceType,
       productLink: inspections.productLink,
       notes: inspections.notes,
@@ -264,6 +266,7 @@ export async function getInspectionsForUser(user: AuthUser): Promise<Inspection[
     inspectorId: r.inspectorId ?? '',
     inspectorName: r.inspectorName ?? 'Unknown',
     image: r.image ?? '/placeholder.svg',
+    images: (r.images as string[]) ?? (r.image ? [r.image] : []),
     sourceType: (r.sourceType as 'image' | 'url') ?? 'image',
     productLink: r.productLink,
     notes: r.notes,
@@ -289,6 +292,7 @@ export async function getInspectionById(id: string): Promise<Inspection | null> 
       inspectorId: users.employeeId,
       inspectorName: users.name,
       image: inspections.image,
+      images: inspections.images,
       sourceType: inspections.sourceType,
       productLink: inspections.productLink,
       notes: inspections.notes,
@@ -314,6 +318,7 @@ export async function getInspectionById(id: string): Promise<Inspection | null> 
     inspectorId: r.inspectorId ?? '',
     inspectorName: r.inspectorName ?? 'Unknown',
     image: r.image ?? '/placeholder.svg',
+    images: (r.images as string[]) ?? (r.image ? [r.image] : []),
     sourceType: (r.sourceType as 'image' | 'url') ?? 'image',
     productLink: r.productLink,
     notes: r.notes,
@@ -328,41 +333,48 @@ export async function createInspection(
   user: AuthUser,
   payload: NewInspectionPayload,
 ): Promise<Inspection> {
-  let userId = user.id
+  // Always resolve the user from the current database by employeeId
+  // to avoid foreign key failures from stale session tokens across DB migrations
+  const me = await resolveUser(user.employeeId)
+  const userId = me ? me.id : user.id
   if (!userId) {
-    const me = await resolveUser(user.employeeId)
-    if (!me) throw new Error('Session user not found.')
-    userId = me.id
+    throw new Error(`Inspector account ${user.employeeId} not found in database.`)
   }
+
   const date = new Date().toISOString().slice(0, 10)
+
+  const allImages = Array.isArray(payload.images) && payload.images.length > 0
+    ? payload.images
+    : (payload.image ? [payload.image] : [])
 
   const [insp] = await db
     .insert(inspections)
     .values({
-      productName: payload.productName,
-      manufacturer: payload.manufacturer,
-      category: payload.category,
-      score: payload.score,
-      status: payload.status,
+      productName: payload.productName || 'Unknown Product',
+      manufacturer: payload.manufacturer || 'Unknown Manufacturer',
+      category: payload.category || 'General',
+      score: typeof payload.score === 'number' ? payload.score : 0,
+      status: payload.status || 'compliant',
       date,
-      state: payload.state,
-      batchNumber: payload.batchNumber,
+      state: payload.state || user.state || 'General',
+      batchNumber: payload.batchNumber || '—',
       inspectorId: userId,
-      sourceType: payload.sourceType,
-      image: payload.image,
-      productLink: payload.productLink,
-      notes: payload.notes,
-      fields: payload.fields as unknown as unknown[],
+      sourceType: payload.sourceType || 'url',
+      image: payload.image || (allImages[0] ?? null),
+      images: allImages,
+      productLink: payload.productLink || null,
+      notes: payload.notes || '',
+      fields: (payload.fields || []) as unknown as unknown[],
     })
     .returning()
 
   await db.insert(reports).values({
     inspectionId: insp.id,
-    product: payload.productName,
-    inspector: user.name,
+    product: payload.productName || 'Unknown Product',
+    inspector: user.name || 'Inspector',
     date,
-    score: payload.score,
-    status: payload.status,
+    score: typeof payload.score === 'number' ? payload.score : 0,
+    status: payload.status || 'compliant',
   })
 
   return {
@@ -378,6 +390,7 @@ export async function createInspection(
     inspectorId: user.employeeId,
     inspectorName: user.name,
     image: insp.image ?? '/placeholder.svg',
+    images: (insp.images as string[]) ?? (insp.image ? [insp.image] : []),
     sourceType: (insp.sourceType as 'image' | 'url') ?? 'image',
     productLink: insp.productLink,
     notes: insp.notes,
@@ -544,6 +557,7 @@ export async function getDashboardData(user: AuthUser): Promise<DashboardData> {
           inspectorId: users.employeeId,
           inspectorName: users.name,
           image: inspections.image,
+          images: inspections.images,
           sourceType: inspections.sourceType,
           productLink: inspections.productLink,
           notes: inspections.notes,
@@ -588,6 +602,7 @@ export async function getDashboardData(user: AuthUser): Promise<DashboardData> {
     inspectorId: r.inspectorId ?? '',
     inspectorName: r.inspectorName ?? 'Unknown',
     image: r.image ?? '/placeholder.svg',
+    images: (r.images as string[]) ?? (r.image ? [r.image] : []),
     sourceType: (r.sourceType as 'image' | 'url') ?? 'image',
     productLink: r.productLink,
     notes: r.notes,

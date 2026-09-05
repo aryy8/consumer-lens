@@ -1,13 +1,12 @@
 # Multi-stage Dockerfile for Next.js app optimized for Google Cloud Run
 
-# Stage 1: Base image
-FROM node:20-alpine AS base
+# Stage 1: Base image (Node 22 LTS for Next.js 16 and modern pnpm support)
+FROM node:22-alpine AS base
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Stage 2: Dependencies
 FROM base AS deps
-# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -36,7 +35,7 @@ RUN \
   fi
 
 # Stage 4: Runner
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production

@@ -10,3 +10,5 @@ README.md
 .vercel
 Dockerfile
 .dockerignore
+deploy.md
+.env.yaml

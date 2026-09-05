@@ -127,6 +127,8 @@ export interface AnalysisResult {
   score: number
   status: ComplianceStatus
   sourceType: 'image' | 'url'
+  image?: string | null
+  images?: string[]
   fields: AnalysisField[]
   readability?: ReadabilityReport | null
 }

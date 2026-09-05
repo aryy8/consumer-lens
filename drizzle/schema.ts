@@ -33,7 +33,8 @@ export const inspections = pgTable('inspections', {
   batchNumber: text('batch_number').notNull(),
   inspectorId: uuid('inspector_id').notNull().references(() => users.id),
   sourceType: text('source_type').notNull(), // 'image' | 'url'
-  image: text('image'), // base64 data URL (nullable)
+  image: text('image'), // base64 data URL or primary image URL (nullable)
+  images: jsonb('images').$type<string[]>(), // array of all product photos
   productLink: text('product_link'),
   notes: text('notes').notNull().default(''),
   fields: jsonb('fields').notNull().$type<unknown[]>(),

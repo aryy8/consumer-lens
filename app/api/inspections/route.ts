@@ -24,6 +24,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, inspection })
   } catch (e) {
     console.error('Failed to create inspection', e)
-    return NextResponse.json({ ok: false, error: 'Failed to save the inspection.' }, { status: 500 })
+    return NextResponse.json({ ok: false, error: (e as Error)?.message || 'Failed to save the inspection.' }, { status: 500 })
   }
 }

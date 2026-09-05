@@ -181,6 +181,8 @@ export async function POST(req: NextRequest) {
       let imageBase64: string | null = null
       let listingText: string | null = null
       let sourceType: 'image' | 'url' = 'image'
+      let productImageUrl: string | null = null
+      let incomingImages: string[] = []
       let category = ''
       let batchNumber = ''
       let state = ''
@@ -196,21 +198,30 @@ export async function POST(req: NextRequest) {
         notes = (formData.get('notes') as string) || ''
         sourceType = (formData.get('sourceType') as 'image' | 'url') || 'image'
 
+        const imagesRaw = formData.get('images') as string | null
+        if (imagesRaw) {
+          try {
+            incomingImages = JSON.parse(imagesRaw)
+          } catch {}
+        }
+
         if (sourceType === 'url') {
           listingText = (formData.get('listingText') as string) || null
+          productImageUrl = (formData.get('productImageUrl') as string) || null
         } else {
-          if (!imageFile) {
+          if (imageFile) {
+            const arrayBuffer = await imageFile.arrayBuffer()
+            const base64 = Buffer.from(arrayBuffer).toString('base64')
+            const mimeType = imageFile.type || 'image/jpeg'
+            imageBase64 = `data:${mimeType};base64,${base64}`
+          } else if (incomingImages.length === 0) {
             send('error', { error: 'No image file provided' })
             close()
             return
           }
-          const arrayBuffer = await imageFile.arrayBuffer()
-          const base64 = Buffer.from(arrayBuffer).toString('base64')
-          const mimeType = imageFile.type || 'image/jpeg'
-          imageBase64 = `data:${mimeType};base64,${base64}`
         }
       } else {
-        // JSON body (for URL-based analysis)
+        // JSON body (for URL-based or multi-image analysis)
         const body = await req.json()
         sourceType = body.sourceType || 'url'
         listingText = body.listingText || null
@@ -218,43 +229,81 @@ export async function POST(req: NextRequest) {
         batchNumber = body.batchNumber || ''
         state = body.state || ''
         notes = body.notes || ''
+        productImageUrl = body.productImageUrl || null
+        if (Array.isArray(body.images)) {
+          incomingImages = body.images.filter((x: unknown) => typeof x === 'string' && x.length > 0)
+        }
       }
 
-      // Send progress updates
-      send('progress', { step: 1, message: 'Extracting text from label' })
-      await new Promise((r) => setTimeout(r, 500))
+      // Consolidate all packaging images
+      const allImages: string[] = []
+      if (imageBase64) allImages.push(imageBase64)
+      for (const img of incomingImages) {
+        if (typeof img === 'string' && img && !allImages.includes(img)) {
+          allImages.push(img)
+        }
+      }
+      if (productImageUrl && !allImages.includes(productImageUrl)) {
+        allImages.unshift(productImageUrl)
+      }
+
+      const totalPhotos = allImages.length
+      console.log(`[Analyze] Initiating analysis with ${totalPhotos} packaging image(s)...`)
+
+      // Send progress updates with clear photo count
+      const photoText = totalPhotos > 1 ? `${totalPhotos} packaging photos` : 'label'
+      send('progress', { step: 1, message: `Extracting text & declarations from ${photoText}` })
+      await new Promise((r) => setTimeout(r, 400))
 
       // Load rules
       const rules = loadComplianceRules()
 
-      send('progress', { step: 2, message: 'Identifying declaration fields' })
-      await new Promise((r) => setTimeout(r, 400))
+      send('progress', { step: 2, message: totalPhotos > 1 ? `Cross-referencing declarations across all ${totalPhotos} photos` : 'Identifying declaration fields' })
+      await new Promise((r) => setTimeout(r, 300))
 
       // Build the messages for OpenRouter
       const systemPrompt = buildSystemPrompt(rules, sourceType)
 
-      let userContent: unknown[]
+      let userContent: unknown[] = []
 
-      if (sourceType === 'image' && imageBase64) {
-        userContent = [
-          {
-            type: 'image_url',
-            image_url: { url: imageBase64 },
-          },
-          {
-            type: 'text',
-            text: `Analyze this product label image for Legal Metrology compliance.${category ? ` Product category: ${category}.` : ''}${batchNumber ? ` Batch number: ${batchNumber}.` : ''}${state ? ` Inspection state: ${state}.` : ''}${notes ? ` Inspector notes: ${notes}.` : ''}`,
-          },
-        ]
-      } else if (sourceType === 'url' && listingText) {
-        userContent = [
-          {
-            type: 'text',
-            text: `Analyze this e-commerce product listing for Legal Metrology compliance (Rule 16 and all applicable rules).\n\nProduct Listing Content:\n---\n${listingText}\n---\n${category ? `\nProduct category: ${category}.` : ''}${batchNumber ? ` Batch number: ${batchNumber}.` : ''}${state ? ` Inspection state: ${state}.` : ''}${notes ? ` Inspector notes: ${notes}.` : ''}`,
-          },
-        ]
+      // Send up to 10 images so LLM inspects all sides and declarations
+      const imagesToSend = allImages.slice(0, 10)
+      console.log(`[Analyze] Dispatching ${imagesToSend.length} packaging images directly to OpenRouter Gemini...`)
+      for (const imgUrl of imagesToSend) {
+        userContent.push({
+          type: 'image_url',
+          image_url: { url: imgUrl },
+        })
+      }
+
+      if (sourceType === 'url') {
+        userContent.push({
+          type: 'text',
+          text: `Analyze this e-commerce product listing and all attached packaging photos (${allImages.length} image(s) provided) for Legal Metrology compliance (Rule 16 and all applicable LMPC Rules 2011).
+
+IMPORTANT INSTRUCTIONS:
+- Inspect EVERY attached packaging image (front, back ingredients & nutrition, MRP & batch declarations, manufacturer / packer details, customer care).
+- A declaration is COMPLIANT if found on ANY of the images or in the listing text.
+- Extract values accurately from packaging images.
+
+Product Listing Content:
+---
+${listingText || 'No listing text provided.'}
+---
+${category ? `\nProduct category: ${category}.` : ''}${batchNumber ? ` Batch number: ${batchNumber}.` : ''}${state ? ` Inspection state: ${state}.` : ''}${notes ? ` Inspector notes: ${notes}.` : ''}`,
+        })
+      } else if (allImages.length > 0) {
+        userContent.push({
+          type: 'text',
+          text: `Analyze all attached product label and packaging images (${allImages.length} image(s) provided) for Legal Metrology compliance (LMPC Rules 2011).
+
+IMPORTANT INSTRUCTIONS:
+- Inspect all angles and declaration panels across all attached photos.
+- If a mandatory declaration appears on any of the packaging photos, extract it and verify compliance.
+${category ? ` Product category: ${category}.` : ''}${batchNumber ? ` Batch number: ${batchNumber}.` : ''}${state ? ` Inspection state: ${state}.` : ''}${notes ? ` Inspector notes: ${notes}.` : ''}`,
+        })
       } else {
-        send('error', { error: 'No image or listing text provided for analysis' })
+        send('error', { error: 'No packaging images or listing text provided for analysis' })
         close()
         return
       }
@@ -456,6 +505,8 @@ export async function POST(req: NextRequest) {
       const score = calculateScore(normalizedFields)
       const status = normalizedFields.some((f) => f.status !== 'compliant' || f.misleadingFlags?.isMisleading) ? 'non-compliant' : 'compliant'
 
+      const primaryImage = allImages[0] || imageBase64 || productImageUrl || null
+
       const result = {
         productName: parsed.productName || 'Unknown Product',
         manufacturer: parsed.manufacturer || 'Unknown Manufacturer',
@@ -463,18 +514,21 @@ export async function POST(req: NextRequest) {
         score,
         status,
         sourceType,
+        image: primaryImage,
+        images: allImages,
         fields: normalizedFields,
         readability,
       }
 
-
       send('progress', { step: 5, message: 'Analysis complete' })
       await new Promise((r) => setTimeout(r, 200))
       send('result', result)
+      await new Promise((r) => setTimeout(r, 400))
       close()
     } catch (err) {
       console.error('Analysis error:', err)
       send('error', { error: `Unexpected error: ${(err as Error).message}` })
+      await new Promise((r) => setTimeout(r, 300))
       close()
     }
   })()
