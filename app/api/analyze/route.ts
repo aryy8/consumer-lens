@@ -54,13 +54,35 @@ ${sourceType === 'image' ? '   - Font Size compliance (Rules 10, 11)\n   - Princ
    - "minor" — for rules marked MINOR severity
    - null — for compliant fields
 
-5. Provide clear, plain-language explanations for violations and missing fields. Reference the specific rule. Be specific about what is wrong and what would fix it.
+5. Bounding box coordinates (for image analysis):
+   - For every field found on the label image, detect its 2D bounding box as [ymin, xmin, ymax, xmax] on a normalized 0 to 1000 integer scale (where ymin=top, xmin=left, ymax=bottom, xmax=right).
+   - If the field is missing or not visible on the image, set "box_2d": null.
+
+6. Font Size & Prominence Analysis (Rules 10, 11, Rule 3, Rule 7):
+   - For each field, assess whether font height meets minimum prescribed thresholds based on net quantity (<200g: 1mm, 200-500g: 2mm, >500g: 4mm).
+   - Check if MRP and Net Quantity are prominently displayed and in bold compared to other text.
+   - Check if numeral width is at least 1/3 of numeral height.
+   - Set "fontSizeCompliance": { "status": "compliant" | "violation" | "warning", "isBold": boolean, "assessment": "concise explanation" }.
+
+7. Misleading & Deceptive Declarations:
+   - Check for stickers pasted over factory-printed MRP, contradictory front vs back claims, non-standard pack sizes under Second Schedule, or deceptive packaging.
+   - Set "misleadingFlags": { "isMisleading": boolean, "reason": "concise explanation or null" }.
+
+8. Readability & Print Quality:
+   - Provide an overall assessment of packaging print clarity, contrast against background, glare/reflection, and font legibility.
+   - Set "readability": { "status": "pass" | "warning" | "fail", "contrastAdequate": boolean, "glareOrBlurDetected": boolean, "notes": "brief plain-language summary" }.
 
 You MUST respond with ONLY valid JSON matching this exact schema (no markdown code fences, no extra text):
 
 {
   "productName": "the product name as identified",
   "manufacturer": "the manufacturer/brand name as identified",
+  "readability": {
+    "status": "pass",
+    "contrastAdequate": true,
+    "glareOrBlurDetected": false,
+    "notes": "Text is sharp, high-contrast, and clearly legible."
+  },
   "fields": [
     {
       "key": "a_unique_key",
@@ -69,6 +91,16 @@ You MUST respond with ONLY valid JSON matching this exact schema (no markdown co
       "status": "compliant" | "violation" | "missing",
       "severity": "critical" | "major" | "minor" | null,
       "extracted": "exact text found on label/listing or null if not found",
+      "box_2d": [ymin, xmin, ymax, xmax] or null,
+      "fontSizeCompliance": {
+        "status": "compliant" | "violation" | "warning",
+        "isBold": true,
+        "assessment": "Meets font height requirement and visual prominence."
+      },
+      "misleadingFlags": {
+        "isMisleading": false,
+        "reason": null
+      },
       "explanation": "explanation of violation or null if compliant"
     }
   ]
@@ -77,16 +109,25 @@ You MUST respond with ONLY valid JSON matching this exact schema (no markdown co
 Include ALL applicable fields in your response, even compliant ones. Return between 6 and 15 fields depending on what's applicable to this product.`
 }
 
-function calculateScore(fields: Array<{ status: string; severity: string | null }>): number {
+function calculateScore(fields: Array<{ status: string; severity: string | null; misleadingFlags?: { isMisleading: boolean } | null }>): number {
   const violations = fields.filter((f) => f.status !== 'compliant')
-  const penalty = violations.reduce((acc, v) => {
+  let penalty = violations.reduce((acc, v) => {
     if (v.severity === 'critical') return acc + 22
     if (v.severity === 'major') return acc + 12
     if (v.severity === 'minor') return acc + 5
     return acc
   }, 0)
+
+  // Additional penalty for misleading declarations if not already flagged as critical
+  for (const f of fields) {
+    if (f.misleadingFlags?.isMisleading && f.severity !== 'critical') {
+      penalty += 10
+    }
+  }
+
   return Math.max(0, 100 - penalty)
 }
+
 
 function createSSEStream() {
   const encoder = new TextEncoder()
@@ -292,7 +333,37 @@ export async function POST(req: NextRequest) {
         jsonStr = jsonStr.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')
       }
 
-      let parsed: { productName: string; manufacturer: string; fields: Array<{ key: string; label: string; rule: string; status: string; severity: string | null; extracted: string | null; explanation: string | null }> }
+      interface RawField {
+        key?: string
+        label?: string
+        rule?: string
+        status?: string
+        severity?: string | null
+        extracted?: string | null
+        explanation?: string | null
+        box_2d?: [number, number, number, number] | null
+        fontSizeCompliance?: {
+          status?: string
+          isBold?: boolean
+          assessment?: string
+        } | null
+        misleadingFlags?: {
+          isMisleading?: boolean
+          reason?: string | null
+        } | null
+      }
+
+      let parsed: {
+        productName?: string
+        manufacturer?: string
+        readability?: {
+          status?: string
+          contrastAdequate?: boolean
+          glareOrBlurDetected?: boolean
+          notes?: string
+        } | null
+        fields?: RawField[]
+      }
 
       try {
         parsed = JSON.parse(jsonStr)
@@ -310,19 +381,80 @@ export async function POST(req: NextRequest) {
         return
       }
 
-      // Normalize field statuses
-      const normalizedFields = parsed.fields.map((f) => ({
-        key: f.key || 'unknown',
-        label: f.label || 'Unknown Field',
-        rule: f.rule || '',
-        status: (['compliant', 'violation', 'missing'].includes(f.status) ? f.status : 'compliant') as 'compliant' | 'violation' | 'missing',
-        severity: (['critical', 'major', 'minor'].includes(f.severity || '') ? f.severity : null) as 'critical' | 'major' | 'minor' | null,
-        extracted: f.extracted || null,
-        explanation: f.explanation || null,
-      }))
+      // Normalize field statuses, bounding boxes, font size, and misleading flags
+      const normalizedFields = parsed.fields.map((f, idx) => {
+        let box = { x: 0, y: 0, w: 0, h: 0 }
+        if (Array.isArray(f.box_2d) && f.box_2d.length === 4) {
+          const [ymin, xmin, ymax, xmax] = f.box_2d
+          if (
+            typeof ymin === 'number' &&
+            typeof xmin === 'number' &&
+            typeof ymax === 'number' &&
+            typeof xmax === 'number'
+          ) {
+            const top = Math.max(0, Math.min(100, ymin / 10))
+            const left = Math.max(0, Math.min(100, xmin / 10))
+            const height = Math.max(1, Math.min(100 - top, (ymax - ymin) / 10))
+            const width = Math.max(1, Math.min(100 - left, (xmax - xmin) / 10))
+            box = {
+              x: Number(left.toFixed(1)),
+              y: Number(top.toFixed(1)),
+              w: Number(width.toFixed(1)),
+              h: Number(height.toFixed(1)),
+            }
+          }
+        }
+
+        const fontSizeCompliance = f.fontSizeCompliance
+          ? {
+              status: (['compliant', 'violation', 'warning'].includes(f.fontSizeCompliance.status || '')
+                ? f.fontSizeCompliance.status
+                : 'compliant') as 'compliant' | 'violation' | 'warning',
+              isBold: Boolean(f.fontSizeCompliance.isBold),
+              assessment: f.fontSizeCompliance.assessment || 'Visual font size assessed',
+            }
+          : null
+
+        const misleadingFlags = f.misleadingFlags
+          ? {
+              isMisleading: Boolean(f.misleadingFlags.isMisleading),
+              reason: f.misleadingFlags.reason || null,
+            }
+          : null
+
+        return {
+          key: f.key || `field_${idx}`,
+          label: f.label || 'Unknown Field',
+          rule: f.rule || '',
+          status: (['compliant', 'violation', 'missing'].includes(f.status || '') ? f.status : 'compliant') as 'compliant' | 'violation' | 'missing',
+          severity: (['critical', 'major', 'minor'].includes(f.severity || '') ? f.severity : null) as 'critical' | 'major' | 'minor' | null,
+          extracted: f.extracted || null,
+          explanation: f.explanation || null,
+          box,
+          box_2d: f.box_2d || null,
+          fontSizeCompliance,
+          misleadingFlags,
+        }
+      })
+
+      const readability = parsed.readability
+        ? {
+            status: (['pass', 'warning', 'fail'].includes(parsed.readability.status || '')
+              ? parsed.readability.status
+              : 'pass') as 'pass' | 'warning' | 'fail',
+            contrastAdequate: parsed.readability.contrastAdequate !== false,
+            glareOrBlurDetected: Boolean(parsed.readability.glareOrBlurDetected),
+            notes: parsed.readability.notes || 'Packaging text clarity verified.',
+          }
+        : {
+            status: 'pass' as const,
+            contrastAdequate: true,
+            glareOrBlurDetected: false,
+            notes: 'Packaging declarations are visible and legible.',
+          }
 
       const score = calculateScore(normalizedFields)
-      const status = normalizedFields.some((f) => f.status !== 'compliant') ? 'non-compliant' : 'compliant'
+      const status = normalizedFields.some((f) => f.status !== 'compliant' || f.misleadingFlags?.isMisleading) ? 'non-compliant' : 'compliant'
 
       const result = {
         productName: parsed.productName || 'Unknown Product',
@@ -332,7 +464,9 @@ export async function POST(req: NextRequest) {
         status,
         sourceType,
         fields: normalizedFields,
+        readability,
       }
+
 
       send('progress', { step: 5, message: 'Analysis complete' })
       await new Promise((r) => setTimeout(r, 200))
