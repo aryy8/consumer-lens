@@ -61,14 +61,14 @@ export function LabelInspector({
   }
 
   return (
-    <div className={cn('relative w-full overflow-hidden rounded-lg border border-border bg-neutral-900/95 select-none flex items-center justify-center min-h-[380px] max-h-[520px]', className)}>
+    <div className={cn('relative w-full max-w-full overflow-hidden rounded-xl border border-border bg-white select-none flex items-center justify-center min-h-[220px] sm:min-h-[360px] max-h-[480px] p-2 sm:p-4 shadow-2xs', className)}>
       {/* Label Image Container */}
-      <div className="relative inline-block max-h-[500px] max-w-full">
+      <div className="relative inline-block max-w-full max-h-full">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={image || '/placeholder.svg'}
           alt="Scanned product label"
-          className="max-h-[500px] w-auto max-w-full object-contain block mx-auto"
+          className="max-h-[240px] sm:max-h-[440px] w-auto max-w-full object-contain block mx-auto"
         />
 
         {/* Scanning animation overlay */}

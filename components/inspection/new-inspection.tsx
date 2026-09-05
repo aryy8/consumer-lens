@@ -717,8 +717,8 @@ export function NewInspection() {
     'h-10 w-full rounded-md border border-muted-foreground/30 bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all'
 
   return (
-    <div className="-mx-5 -my-5 p-5 lg:-mx-8 lg:-my-8 lg:p-8 min-h-full bg-[#FAFAF9]">
-      <div className="max-w-5xl mx-auto">
+    <div className="w-full max-w-full overflow-x-hidden min-h-full bg-[#FAFAF9] -m-3.5 sm:-m-5 lg:-m-8 p-3.5 sm:p-5 lg:p-8">
+      <div className="max-w-5xl mx-auto w-full min-w-0">
         {/* CSS-Based Animations Container */}
         <style>{`
           @keyframes radarSweep {
@@ -1243,7 +1243,7 @@ export function NewInspection() {
                     <span className="flex size-4 items-center justify-center shrink-0">
                       <span className="size-2 rounded-full bg-primary pulse-amber" />
                     </span>
-                    <span className="text-foreground font-semibold animate-pulse">Initializing analysis...</span>
+<span className="text-foreground font-semibold animate-pulse">Initializing analysis...</span>
                   </li>
                 )}
               </ul>
@@ -1253,29 +1253,29 @@ export function NewInspection() {
 
         {/* STATE 3 — Compliance Results */}
         {step === 'result' && result && (
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-6 w-full min-w-0">
             {/* Top Section: Product Identity Bar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border pb-6 gap-4 animate-[fadeIn_0.3s_ease-out_forwards]">
-              <div>
-                <h1 className="text-[20px] font-bold text-foreground">{displayProductName}</h1>
-                <p className="text-[13px] text-muted-foreground mt-0.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border pb-5 sm:pb-6 gap-4 animate-[fadeIn_0.3s_ease-out_forwards] w-full min-w-0">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg sm:text-[20px] font-bold text-foreground break-words">{displayProductName}</h1>
+                <p className="text-xs sm:text-[13px] text-muted-foreground mt-0.5 break-words">
                   Manufacturer: {result.manufacturer} · Batch: {batchNumber || '—'} · Region: {state}
                   {result.sourceType === 'url' && ' · Source: E-commerce listing'}
                 </p>
               </div>
               
-              <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
-                <div className="text-left sm:text-right">
-                  <span className={cn('text-sm font-semibold tracking-wider', statusColor)}>
+              <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0 min-w-0">
+                <div className="text-left sm:text-right min-w-0">
+                  <span className={cn('text-xs sm:text-sm font-semibold tracking-wider', statusColor)}>
                     {statusText}
                   </span>
-                  <p className="text-[13px] text-muted-foreground mt-0.5">
+                  <p className="text-xs sm:text-[13px] text-muted-foreground mt-0.5">
                     {violations.length === 0 ? 'All declarations compliant' : `${violations.length} violation${violations.length > 1 ? 's' : ''} detected`}
                   </p>
                 </div>
 
                 {/* Score Ring */}
-                <div className="relative size-[76px] flex items-center justify-center shrink-0">
+                <div className="relative size-[64px] sm:size-[76px] flex items-center justify-center shrink-0">
                   <svg className="size-full -rotate-90" viewBox="0 0 76 76">
                     <circle
                       cx="38"
@@ -1298,7 +1298,7 @@ export function NewInspection() {
                     />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center px-1">
-                    <span className={cn('text-2xl sm:text-[28px] font-bold tracking-tight leading-none text-center', scoreColor)}>
+                    <span className={cn('text-xl sm:text-[28px] font-bold tracking-tight leading-none text-center', scoreColor)}>
                       {result.score}
                     </span>
                   </div>
@@ -1308,11 +1308,11 @@ export function NewInspection() {
 
             {/* Readability & Quality Assessment Banner */}
             {result.readability && (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-white px-4 py-3 shadow-xs animate-[fadeIn_0.3s_ease-out_forwards]">
-                <div className="flex items-center gap-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-lg border border-border bg-white p-3 sm:px-4 sm:py-3 shadow-xs w-full min-w-0 animate-[fadeIn_0.3s_ease-out_forwards]">
+                <div className="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
                   <span
                     className={cn(
-                      'flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                      'flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold mt-0.5 sm:mt-0',
                       result.readability.status === 'pass'
                         ? 'bg-emerald-100 text-emerald-800'
                         : result.readability.status === 'warning'
@@ -1322,40 +1322,40 @@ export function NewInspection() {
                   >
                     {result.readability.status === 'pass' ? <Check className="size-3.5" /> : '!'}
                   </span>
-                  <div>
-                    <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                       <p className="text-xs font-semibold text-foreground">
                         Packaging Readability & Print Quality:{' '}
                         <span className="uppercase">{result.readability.status}</span>
                       </p>
                       {result.readability.contrastAdequate ? (
-                        <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
+                        <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 shrink-0">
                           Adequate Contrast
                         </span>
                       ) : (
-                        <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium text-rose-700">
+                        <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium text-rose-700 shrink-0">
                           Low Contrast Warning
                         </span>
                       )}
                       {result.readability.glareOrBlurDetected && (
-                        <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                        <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 shrink-0">
                           Glare / Blur Detected
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">{result.readability.notes}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 break-words">{result.readability.notes}</p>
                   </div>
                 </div>
-                <div className="text-[11px] font-mono text-muted-foreground">
+                <div className="text-[10px] sm:text-[11px] font-mono text-muted-foreground shrink-0 self-end sm:self-center">
                   LMPC Rule 9 / Rule 14 Verification
                 </div>
               </div>
             )}
 
             {/* Two Columns */}
-            <div className="grid gap-8 lg:grid-cols-10 items-start animate-[fadeIn_0.4s_ease-out_forwards]">
+            <div className="grid gap-6 lg:gap-8 lg:grid-cols-10 items-start w-full min-w-0 animate-[fadeIn_0.4s_ease-out_forwards]">
               {/* Left Column - Label Inspector with Bounding Boxes */}
-              <div className="lg:col-span-5 space-y-4">
+              <div className="lg:col-span-5 space-y-4 w-full min-w-0">
                 {image ? (
                   <LabelInspector
                     image={image}
@@ -1364,7 +1364,7 @@ export function NewInspection() {
                     onHover={setActiveKey}
                   />
                 ) : (
-                  <div className="relative border border-border rounded-lg overflow-hidden bg-white flex flex-col items-center gap-3 text-center py-12 p-4 shadow-sm">
+                  <div className="relative border border-border rounded-lg overflow-hidden bg-white flex flex-col items-center gap-3 text-center py-12 p-4 shadow-sm w-full min-w-0">
                     <LinkIcon className="size-10 text-muted-foreground/50" strokeWidth={1.5} />
                     <p className="text-sm font-medium text-foreground">E-commerce Listing Analysis</p>
                     <p className="text-xs text-muted-foreground max-w-xs break-all">{productLink}</p>
@@ -1379,15 +1379,15 @@ export function NewInspection() {
                   if (allPhotos.length <= 1) return null
 
                   return (
-                    <div className="space-y-2 rounded-xl border border-border bg-white p-3 shadow-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                          <ImageIcon className="size-3.5 text-primary" />
-                          Inspected Packaging Photos ({allPhotos.length} photos)
+                    <div className="space-y-2 rounded-xl border border-border bg-white p-3 shadow-xs w-full min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-foreground flex items-center gap-1.5 truncate">
+                          <ImageIcon className="size-3.5 text-primary shrink-0" />
+                          <span className="truncate">Packaging Photos ({allPhotos.length})</span>
                         </span>
-                        <span className="text-[11px] text-muted-foreground font-medium">Click to inspect angle</span>
+                        <span className="text-[10px] sm:text-[11px] text-muted-foreground font-medium shrink-0">Click to switch</span>
                       </div>
-                      <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5">
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 w-full">
                         {allPhotos.map((imgSrc, idx) => {
                           const isCurrent = (image === imgSrc) || (!image && idx === 0)
                           return (
@@ -1422,7 +1422,7 @@ export function NewInspection() {
                 })()}
 
                 {/* Action Buttons */}
-                <div className="flex flex-col gap-2.5">
+                <div className="flex flex-col gap-2.5 w-full min-w-0">
                   {(() => {
                     const getInspectionPayload = (): Inspection | null => {
                       if (!result) return null
@@ -1460,10 +1460,10 @@ export function NewInspection() {
                     }
 
                     return (
-                      <div className="flex flex-col gap-2">
-                        {/* Primary Row: View Report & Download PDF (Always Side by Side) */}
-                        <div className="grid grid-cols-2 gap-2">
-                          {/* View Report in Popup Modal (Light Soft Blue) */}
+                      <div className="flex flex-col gap-2 w-full min-w-0">
+                        {/* Primary Row: View Report & Download PDF */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full min-w-0">
+                          {/* View Report in Popup Modal */}
                           <button
                             type="button"
                             onClick={async () => {
@@ -1482,7 +1482,7 @@ export function NewInspection() {
                               }
                             }}
                             disabled={isViewingPdf || isGeneratingPdf}
-                            className="h-10 px-2 rounded-lg bg-sky-50 hover:bg-sky-100/90 text-sky-700 border border-sky-200/90 font-semibold text-xs md:text-sm transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                            className="h-10 px-3 rounded-lg bg-sky-50 hover:bg-sky-100/90 text-sky-700 border border-sky-200/90 font-semibold text-xs sm:text-sm transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 w-full min-w-0"
                           >
                             {isViewingPdf ? (
                               <><Loader2 className="size-4 shrink-0 animate-spin" /> <span className="truncate">Preparing…</span></>
@@ -1505,7 +1505,7 @@ export function NewInspection() {
                               }
                             }}
                             disabled={isGeneratingPdf || isViewingPdf}
-                            className="h-10 px-2 rounded-lg bg-primary text-white hover:bg-primary/95 font-semibold text-xs md:text-sm transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                            className="h-10 px-3 rounded-lg bg-primary text-white hover:bg-primary/95 font-semibold text-xs sm:text-sm transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 w-full min-w-0"
                           >
                             {isGeneratingPdf ? (
                               <><Loader2 className="size-4 shrink-0 animate-spin" /> <span className="truncate">Generating…</span></>
@@ -1516,7 +1516,7 @@ export function NewInspection() {
                         </div>
 
                         {/* Secondary Row: Save & Scan Another */}
-                        <div className="flex items-center gap-2">
+                        <div className="grid grid-cols-2 gap-2 w-full min-w-0">
                           {/* Save Report Button */}
                           <button
                             type="button"
@@ -1564,18 +1564,18 @@ export function NewInspection() {
                             }}
                             disabled={isSaved || isSaving}
                             className={cn(
-                              'flex-1 h-9 px-4 rounded-lg font-medium text-xs md:text-sm border transition-all flex items-center justify-center gap-1.5 cursor-pointer',
+                              'h-9 px-2 sm:px-4 rounded-lg font-medium text-xs sm:text-sm border transition-all flex items-center justify-center gap-1.5 cursor-pointer w-full min-w-0',
                               isSaved
                                 ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
                                 : 'border-border bg-background hover:bg-muted text-foreground'
                             )}
                           >
                             {isSaved ? (
-                              <><CheckCircle2 className="size-4 text-emerald-600" /> Saved</>
+                              <><CheckCircle2 className="size-4 text-emerald-600 shrink-0" /> <span className="truncate">Saved</span></>
                             ) : isSaving ? (
-                              <><Save className="size-4" /> Saving…</>
+                              <><Save className="size-4 shrink-0" /> <span className="truncate">Saving…</span></>
                             ) : (
-                              <><Save className="size-4" /> Save</>
+                              <><Save className="size-4 shrink-0" /> <span className="truncate">Save</span></>
                             )}
                           </button>
 
@@ -1583,9 +1583,9 @@ export function NewInspection() {
                           <button
                             type="button"
                             onClick={reset}
-                            className="flex-1 h-9 rounded-lg border border-border/80 bg-muted/20 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+                            className="h-9 px-2 sm:px-4 rounded-lg border border-border/80 bg-muted/20 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors text-xs sm:text-sm font-medium flex items-center justify-center gap-1.5 cursor-pointer w-full min-w-0"
                           >
-                            <RefreshCw className="size-3.5" /> Scan Another Product
+                            <RefreshCw className="size-3.5 shrink-0" /> <span className="truncate">Scan Another</span>
                           </button>
                         </div>
                       </div>
@@ -1595,9 +1595,9 @@ export function NewInspection() {
               </div>
 
               {/* Right Column - scrollable fields list */}
-              <div className="lg:col-span-5 flex flex-col">
-                <div className="max-h-[450px] overflow-y-auto pr-1">
-                  <ul className="divide-y divide-border border-b border-border">
+              <div className="lg:col-span-5 flex flex-col w-full min-w-0">
+                <div className="max-h-[520px] overflow-y-auto pr-1 w-full min-w-0">
+                  <ul className="divide-y divide-border border-b border-border w-full min-w-0 space-y-1">
                     {result.fields.map((f: AnalysisField) => {
                       const active = activeKey === f.key
                       const isFailing = f.status !== 'compliant'
@@ -1608,9 +1608,12 @@ export function NewInspection() {
                           onMouseEnter={() => setActiveKey(f.key)}
                           onMouseLeave={() => setActiveKey(null)}
                           className={cn(
-                            'py-4 flex gap-3 transition-colors',
-                            isFailing ? 'bg-danger/[0.04] px-4 -mx-4 rounded-md' : 'px-0',
-                            active && !isFailing ? 'bg-muted/40 px-4 -mx-4 rounded-md' : ''
+                            'p-3 rounded-lg transition-colors flex gap-2.5 sm:gap-3 w-full min-w-0',
+                            isFailing
+                              ? 'bg-amber-500/[0.05] border border-amber-500/25'
+                              : active
+                              ? 'bg-muted/50 border border-border/60'
+                              : 'border border-transparent'
                           )}
                         >
                           {/* Status Icon */}
@@ -1625,16 +1628,16 @@ export function NewInspection() {
                           </div>
 
                           {/* Content */}
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="text-sm font-medium text-foreground">{f.label}</p>
-                              <span className="font-mono text-[11px] bg-muted px-1.5 py-0.5 rounded text-foreground">
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                              <p className="text-sm font-semibold text-foreground break-words">{f.label}</p>
+                              <span className="font-mono text-[10px] sm:text-[11px] bg-muted px-1.5 py-0.5 rounded text-foreground shrink-0">
                                 {f.rule}
                               </span>
                               {isFailing && f.severity && (
                                 <span
                                   className={cn(
-                                    'text-[10px] font-bold tracking-wider uppercase',
+                                    'text-[10px] font-bold tracking-wider uppercase shrink-0',
                                     f.severity === 'critical' ? 'text-danger' : f.severity === 'major' ? 'text-warning-foreground' : 'text-muted-foreground'
                                   )}
                                 >
@@ -1642,14 +1645,14 @@ export function NewInspection() {
                                 </span>
                               )}
                               {f.misleadingFlags?.isMisleading && (
-                                <span className="inline-flex items-center gap-1 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-purple-900">
+                                <span className="inline-flex items-center gap-1 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-purple-900 shrink-0">
                                   <ShieldAlert className="size-3" /> Misleading
                                 </span>
                               )}
                               {f.fontSizeCompliance && (
                                 <span
                                   className={cn(
-                                    'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium',
+                                    'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium shrink-0',
                                     f.fontSizeCompliance.status === 'compliant'
                                       ? 'bg-slate-100 text-slate-700'
                                       : 'bg-amber-100 text-amber-900 font-semibold'
@@ -1663,24 +1666,24 @@ export function NewInspection() {
                               )}
                             </div>
 
-                            <p className="text-xs italic text-slate-400 mt-0.5">
+                            <p className="text-xs italic text-slate-500 mt-0.5 break-words">
                               {f.extracted ? `"${f.extracted}"` : 'Not detected on label'}
                             </p>
 
                             {f.fontSizeCompliance?.assessment && f.fontSizeCompliance.status !== 'compliant' && (
-                              <p className="text-xs text-amber-800 mt-1 font-medium bg-amber-50 rounded p-1.5 border border-amber-200/60">
+                              <p className="text-xs text-amber-900 mt-1 font-medium bg-amber-50 rounded p-1.5 border border-amber-200/60 break-words">
                                 📏 Font Rule: {f.fontSizeCompliance.assessment}
                               </p>
                             )}
 
                             {f.misleadingFlags?.isMisleading && f.misleadingFlags.reason && (
-                              <p className="text-xs text-purple-950 mt-1 font-medium bg-purple-50 rounded p-1.5 border border-purple-200">
+                              <p className="text-xs text-purple-950 mt-1 font-medium bg-purple-50 rounded p-1.5 border border-purple-200 break-words">
                                 ⚠️ Misleading: {f.misleadingFlags.reason}
                               </p>
                             )}
 
                             {f.explanation && (
-                              <p className="text-xs font-normal text-slate-600 mt-1 leading-relaxed">
+                              <p className="text-xs font-normal text-slate-600 mt-1 leading-relaxed break-words">
                                 {f.explanation}
                               </p>
                             )}
@@ -1692,7 +1695,7 @@ export function NewInspection() {
                 </div>
 
                 {/* Retry section */}
-                <div className="border-t border-border pt-4 mt-4">
+                <div className="border-t border-border pt-4 mt-4 w-full">
                   <button
                     onClick={() => {
                       setResult(null)
@@ -1704,7 +1707,7 @@ export function NewInspection() {
                         handleScrapeUrl()
                       }
                     }}
-                    className="w-full flex items-center justify-center gap-1.5 border border-border hover:bg-muted/30 py-3 rounded-md text-sm font-medium transition-colors"
+                    className="w-full flex items-center justify-center gap-1.5 border border-border hover:bg-muted/30 py-2.5 sm:py-3 rounded-md text-sm font-medium transition-colors cursor-pointer"
                   >
                     <RefreshCw className="size-3.5" /> Re-analyze
                   </button>

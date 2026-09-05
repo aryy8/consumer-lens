@@ -52,10 +52,10 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
     .join('')
 
   return (
-    <div className="flex min-h-screen bg-muted/30">
+    <div className="flex min-h-screen bg-muted/30 w-full max-w-full overflow-x-hidden">
       <AppSidebar collapsed={collapsed} toggleCollapsed={toggleCollapsed} />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col w-full max-w-full overflow-x-hidden">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-border bg-background px-5">
           <div className="flex items-center gap-3">
             <h1 className="text-base font-semibold tracking-tight text-foreground">
@@ -106,7 +106,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
           </div>
         </header>
 
-        <main className="min-w-0 flex-1 p-5 pb-24 lg:p-8 lg:pb-8">{children}</main>
+        <main className="min-w-0 flex-1 p-3.5 sm:p-5 pb-28 sm:pb-28 lg:p-8 lg:pb-8 w-full max-w-full overflow-x-hidden">{children}</main>
 
         {/* Mobile bottom navigation bar */}
         <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background pb-safe-bottom lg:hidden shadow-lg">
