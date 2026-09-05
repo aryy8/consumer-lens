@@ -2,13 +2,15 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, AlertTriangle, Download, Loader2, MapPin, Trash2, User } from 'lucide-react'
+import { AlertCircle, AlertTriangle, Download, Eye, Loader2, MapPin, Trash2, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Panel, PanelHeader } from '@/components/section'
 import { ScoreBadge, StatusTag } from '@/components/status'
 import { LabelInspector } from '@/components/inspection/label-inspector'
 import { FieldList } from '@/components/inspection/field-list'
 import { generateInspectionPDF } from '@/lib/pdf-report'
+import { PdfViewerModal } from '@/components/inspection/pdf-modal'
+import { cn } from '@/lib/utils'
 import type { Inspection } from '@/lib/types'
 
 export function InspectionDetail({ inspection }: { inspection: Inspection }) {
@@ -17,6 +19,9 @@ export function InspectionDetail({ inspection }: { inspection: Inspection }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false)
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
+  const [isPreparingPdf, setIsPreparingPdf] = useState(false)
 
   const violations = inspection.fields.filter((f) => f.status !== 'compliant')
 
@@ -137,17 +142,52 @@ export function InspectionDetail({ inspection }: { inspection: Inspection }) {
               <dt className="text-muted-foreground">Date</dt>
               <dd className="font-medium tabular-nums text-foreground">{inspection.date}</dd>
             </div>
+            {inspection.readability && (
+              <div className="flex items-center justify-between border-t border-border/60 pt-2">
+                <dt className="text-muted-foreground text-xs">Readability</dt>
+                <dd className="font-semibold text-xs capitalize text-foreground flex items-center gap-1.5">
+                  <span className={cn('size-2 rounded-full', inspection.readability.status === 'pass' ? 'bg-emerald-500' : 'bg-amber-500')} />
+                  {inspection.readability.status}
+                </dd>
+              </div>
+            )}
           </dl>
           <div className="mt-4 space-y-2">
-            <Button
-              variant="outline"
-              className="w-full gap-1.5"
-              onClick={async () => {
-                await generateInspectionPDF(inspection)
-              }}
-            >
-              <Download className="size-4" /> Export PDF report
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                className="gap-1.5 bg-sky-50 hover:bg-sky-100/90 text-sky-700 border-sky-200/90 cursor-pointer text-xs font-semibold shadow-xs"
+                disabled={isPreparingPdf}
+                onClick={async () => {
+                  setIsPreparingPdf(true)
+                  setIsPdfModalOpen(true)
+                  try {
+                    const blobUrl = await generateInspectionPDF(inspection, 'view')
+                    setPdfPreviewUrl(blobUrl)
+                  } catch (err) {
+                    console.error(err)
+                    alert('Could not generate PDF preview.')
+                  } finally {
+                    setIsPreparingPdf(false)
+                  }
+                }}
+              >
+                {isPreparingPdf ? (
+                  <><Loader2 className="size-3.5 animate-spin" /> Preparing…</>
+                ) : (
+                  <><Eye className="size-3.5" /> View Report</>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                className="gap-1.5 cursor-pointer text-xs"
+                onClick={async () => {
+                  await generateInspectionPDF(inspection, 'download')
+                }}
+              >
+                <Download className="size-3.5" /> Download PDF
+              </Button>
+            </div>
             <button
               type="button"
               onClick={() => setShowDeleteConfirm(true)}
@@ -168,6 +208,17 @@ export function InspectionDetail({ inspection }: { inspection: Inspection }) {
           <FieldList fields={inspection.fields} activeKey={activeKey} onHover={setActiveKey} />
         </Panel>
       </div>
+
+      {/* In-App PDF Viewer Popup Component */}
+      <PdfViewerModal
+        isOpen={isPdfModalOpen}
+        onClose={() => setIsPdfModalOpen(false)}
+        pdfUrl={pdfPreviewUrl}
+        productName={inspection.productName}
+        onDownload={async () => {
+          await generateInspectionPDF(inspection, 'download')
+        }}
+      />
     </div>
   )
 }
