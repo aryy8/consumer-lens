@@ -730,7 +730,7 @@ export async function generateInspectionPDF(
       const v = violations[vIdx]
       let explanationText = v.explanation || 'Statutory non-compliance identified on packaging label.'
       if (v.fontSizeCompliance?.assessment && v.fontSizeCompliance.status !== 'compliant') {
-        explanationText += ` Font Size Rule (Rule 10/11): ${v.fontSizeCompliance.assessment}.`
+        explanationText += ` Font Size Rule (Rule 7 & Table I): ${v.fontSizeCompliance.assessment}.`
       }
       if (v.misleadingFlags?.isMisleading && v.misleadingFlags.reason) {
         explanationText += ` Deceptive/Misleading Declaration Finding: ${v.misleadingFlags.reason}.`

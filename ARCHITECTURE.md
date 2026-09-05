@@ -15,9 +15,9 @@ The platform automates the inspection of physical packaged commodities and e-com
 ### Key Capabilities
 - **Multi-Modal Label Evidence Capture**: Live camera ingestion, high-resolution packaging photo uploads, and automated PDP web scraping for major e-commerce portals (Amazon, Flipkart).
 - **Vision AI Multimodal Extraction**: Gemini Vision multimodal inference detecting normalized 2D bounding boxes (`box_2d: [ymin, xmin, ymax, xmax]`), font size compliance, and print readability.
-- **Rule 10 & 11 Font Size Compliance**: Evaluates numeral height against packaging net capacity tables, aspect ratio limits, and prominence of MRP.
-- **Rule 9 & 14 Packaging Readability & Defect Assessment**: Real-time evaluation of contrast adequacy, glare, blur, and text legibility.
-- **Misleading & Deceptive Declaration Flags**: Automatic detection of unauthorized price sticker overlays, contradictory claims, and non-standard pack sizes.
+- **Rule 7 & Table I Font Size Compliance**: Evaluates numeral and letter heights on the Principal Display Panel (PDP) against Table I statutory minimums, aspect ratio limits, and prominence of MRP.
+- **Rule 9 Manner of Declaration & Readability**: Real-time evaluation of print contrast adequacy, surface glare, blur, and statutory language compliance (Hindi/English).
+- **Rule 18(2) & Section 18 Fair Trade & Deceptive Declarations**: Automatic detection of unauthorized price sticker overlays, price alterations, smudging, and contradictory claims.
 - **Statutory Enforcement Dossier & PDF Memorandum**: Generates courtroom-ready digital inspection dossiers compliant with Section 65B of the Indian Evidence Act, complete with SHA-256 evidence hashes, verification QR codes, and institutional seals.
 - **Zero-Data-Loss Offline Resilience**: Client-side IndexedDB persistence ensures field inspectors never lose in-progress scans upon browser reloads or network dropouts.
 
@@ -67,7 +67,7 @@ flowchart LR
     subgraph S3 ["STAGE 3: STATUTORY RULE AUDIT"]
         direction TB
         U3["USER INTERACTION<br/><b>Interactive Evidence Inspection</b><br/>• Explores visual bounding box overlays<br/>• Audits 10 mandatory LMPC fields<br/>• Reviews violation tags & 0-100 score"]
-        T3["UNDERLYING TECHNOLOGY<br/><b>Codified LMPC Regulatory Engine</b><br/>• Rule 10/11: Table I Numeral Heights<br/>• Rule 9/14: Print Contrast & Legibility<br/>• Rule 15: Deceptive Sticker Detection"]
+        T3["UNDERLYING TECHNOLOGY<br/><b>Codified LMPC Regulatory Engine</b><br/>• Rule 7: Table I Numeral Heights<br/>• Rule 9: Print Contrast & Legibility<br/>• Rule 18(2): Deceptive Sticker Detection"]
         U3 <-->|"Visual Review"| T3
     end
 
@@ -101,7 +101,7 @@ flowchart LR
 | :--- | :--- | :--- | :--- |
 | **1. Evidence Ingestion** | Launches PWA on mobile or workstation; triggers live camera stream or inputs e-commerce PDP URL; state/district detected automatically. | HTML5 MediaDevices API, BigDataCloud Geocoding, client-side IndexedDB (`ConsumerLensDraftDB`). | Image serialized into Base64; draft state preserved locally to prevent loss on browser reload. |
 | **2. Streaming Inference** | Clicks "Run Compliance Analysis"; views live status ticker advancing through inference milestones. | Next.js Edge / Node Route Handlers (`/api/analyze`), Server-Sent Events (`text/event-stream`), Gemini Vision 2.5 API. | HTTP POST with multipart payload; server dispatches prompt + image to Gemini; streams back real-time step events. |
-| **3. Statutory Audit** | Navigates visual label inspector; toggles 2D bounding boxes over packaging; audits missing declarations and penalty scores. | React 19 Canvas/SVG coordinate mapper, LMPC Rule 10/11 Table I height engine, Rule 9/14 contrast scorer. | Maps normalized coordinates `[ymin, xmin, ymax, xmax]` to screen pixels; evaluates declarations against statutory rules; computes 0-100 score. |
+| **3. Statutory Audit** | Navigates visual label inspector; toggles 2D bounding boxes over packaging; audits missing declarations and penalty scores. | React 19 Canvas/SVG coordinate mapper, LMPC Rule 7 Table I height engine, Rule 9 contrast scorer. | Maps normalized coordinates `[ymin, xmin, ymax, xmax]` to screen pixels; evaluates declarations against statutory rules; computes 0-100 score. |
 | **4. Legal Enforcement** | Confirms findings; saves inspection to state repository; launches full-screen PDF dossier; verifies tamper-proof QR code. | Neon Serverless PostgreSQL, Drizzle ORM, Web Crypto SHA-256 hashing, jsPDF vector engine. | Generates cryptographic hash over inspection parameters; stores record in Postgres; issues Section 65B certified PDF memorandum. |
 
 ---
@@ -115,10 +115,10 @@ graph TD
     Input["<b>Packaged Commodity Evidence</b><br/>Physical Packaging Photo or E-Commerce PDP"]
 
     subgraph Pillars ["<b>LMPC Rules, 2011 · 4 Core Statutory Audit Pillars</b>"]
-        P1["<b>Rule 6: Mandatory Declarations</b><br/>Mfg, MRP, Net Qty, Month/Year, Consumer Care"]
-        P2["<b>Rule 10 & 11: Numeral Heights</b><br/>Table I Minimum Font vs. Pack Area"]
-        P3["<b>Rule 9 & 14: Readability & Format</b><br/>Print Contrast, Language & Background Glare"]
-        P4["<b>Rule 15 & Sec 18: Fair Trade</b><br/>Anti-Sticker Overlays & Deceptive Claims"]
+        P1["<b>Rule 6: Mandatory Declarations</b><br/>Mfg, Net Qty, Month/Year, MRP, Consumer Care"]
+        P2["<b>Rule 7 & Table I: Numeral Heights</b><br/>Table I Minimum Font vs. Pack Area"]
+        P3["<b>Rule 9: Readability & Language</b><br/>Print Contrast, Legibility & Hindi/English"]
+        P4["<b>Rule 18(2) & Sec 18: Fair Trade</b><br/>Anti-Sticker Overlays & Deceptive Claims"]
     end
 
     Verdict{"<b>Statutory Verdict Engine</b><br/>Weighted Penalty Algorithm"}
@@ -147,14 +147,16 @@ graph TD
 | :--- | :--- | :--- | :---: | :---: |
 | **Rule 6(1)(a)** | Manufacturer / Packer / Importer | Missing name, missing registered address, or no role qualifier | **CRITICAL** | -25 pts |
 | **Rule 6(1)(b)** | Generic / Common Name | Brand name only; generic commodity nature omitted | **MAJOR** | -15 pts |
-| **Rule 6(1)(c)** | Maximum Retail Price (MRP) | Missing "Inclusive of all taxes", missing currency symbol | **CRITICAL** | -25 pts |
+| **Rule 6(1)(c)** | Net Quantity | Non-SI units, missing numeral/unit, or missing space around unit | **CRITICAL** | -25 pts |
 | **Rule 6(1)(d)** | Date of Manufacture / Packing | Missing month and year of packaging | **MAJOR** | -15 pts |
-| **Rule 6(1)(e)** | Net Quantity | Non-SI units, missing whitespace around numeral | **CRITICAL** | -25 pts |
-| **Rule 6(2)** | Consumer Care Grievance Cell | Missing official phone, email, or physical address | **MAJOR** | -15 pts |
+| **Rule 6(1)(da)**| Best Before / Use By Date | Missing on perishable products, or missing qualifier | **MAJOR** | -15 pts |
+| **Rule 6(1)(e)** | Maximum Retail Price (MRP) | Missing "Inclusive of all taxes", missing currency symbol | **CRITICAL** | -25 pts |
+| **Rule 6(1)(f) / 6(2)** | Consumer Care Grievance Cell | Missing official phone, email, or physical address | **MAJOR** | -15 pts |
+| **Rule 6(1)(g)** | Country of Origin | Missing country of origin on imported packaged goods | **MAJOR** | -15 pts |
 | **Rule 6(11)** | Unit Sale Price (USP) | Missing calculated unit price per gram/ml for packs > 100g/ml | **MINOR** | -10 pts |
-| **Rule 9 & 14** | Language & Readability | Low print contrast, glare, blur, or non-English/Hindi declaration | **MINOR** | -10 pts |
-| **Rule 10 & 11** | Minimum Font Size (Table I) | Numeral height below statutory minimum for pack area | **MAJOR** | -15 pts |
-| **Rule 15 / Sec 18**| Misleading Declarations | Dual pricing stickers, deceptive claims, non-standard pack sizes | **CRITICAL** | -30 pts |
+| **Rule 7 & Table I** | Minimum Font Size (PDP Height) | Numeral/letter height below statutory Table I minimum for pack area | **MAJOR** | -15 pts |
+| **Rule 9** | Print Legibility, Contrast & Language | Low print contrast, glare, blur, or non-English/Hindi declaration | **MINOR** | -10 pts |
+| **Rule 18(2) / Sec 18**| Misleading & Altered Pricing | Dual pricing stickers, smudged MRP, deceptive claims | **CRITICAL** | -30 pts |
 
 ---
 
@@ -292,9 +294,9 @@ flowchart LR
 | **Target Authority** | Department of Consumer Affairs (DoCA), Ministry of Consumer Affairs, Govt. of India |
 | **Front-End Stack** | Next.js 16.3 (App Router), React 19, Tailwind CSS 4, shadcn/ui, Lucide Icons |
 | **AI Inference** | Gemini Vision 2.5 Multimodal LLM returning normalized 2D bounding boxes (`box_2d`) |
-| **Font Size Rules** | Rule 10 & 11 (Table I minimum numeral height verification against packaging area) |
-| **Readability Rules** | Rule 9 & 14 (Automated contrast ratio, blur/glare detection, and print quality scoring) |
-| **Deceptive Claims** | Rule 15 & Section 18 (Price sticker overlay detection & contradictory claim flagging) |
+| **Font Size Rules** | Rule 7 & Table I (Minimum numeral and letter height verification against packaging area) |
+| **Readability Rules** | Rule 9 (Automated contrast ratio, prominence, Hindi/English language, and print quality scoring) |
+| **Deceptive Claims** | Rule 18(2) & Section 18 (Price alteration, sticker overlay detection, dual pricing & deceptive packaging) |
 | **Offline Resilience** | Native browser IndexedDB (`ConsumerLensDraftDB`) caching images & scan state |
 | **Legal Admissibility**| Section 65B Indian Evidence Act SHA-256 evidence digest & dynamic verification QR |
 | **Database** | PostgreSQL with Drizzle ORM, connection pooling via Neon serverless |
