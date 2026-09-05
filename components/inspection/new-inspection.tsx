@@ -717,8 +717,8 @@ export function NewInspection() {
     'h-10 w-full rounded-md border border-muted-foreground/30 bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all'
 
   return (
-    <div className="w-full max-w-full overflow-x-hidden min-h-full bg-[#FAFAF9] -m-3.5 sm:-m-5 lg:-m-8 p-3.5 sm:p-5 lg:p-8">
-      <div className="max-w-5xl mx-auto w-full min-w-0">
+    <div className="w-full max-w-5xl mx-auto min-w-0">
+      <div className="w-full min-w-0">
         {/* CSS-Based Animations Container */}
         <style>{`
           @keyframes radarSweep {
