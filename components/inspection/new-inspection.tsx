@@ -1121,12 +1121,7 @@ export function NewInspection() {
               <div className="flex flex-col justify-between rounded-lg border border-border bg-white p-6 shadow-sm">
                 <div className="space-y-4">
                   <label className="text-sm block">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[13px] font-medium text-foreground">Product Category</span>
-                      <span className="text-[11px] text-muted-foreground font-normal">
-                        (Auto-detected by AI)
-                      </span>
-                    </div>
+                    <span className="text-[13px] font-medium text-foreground block mb-1">Product Category</span>
                     <select
                       value={category}
                       onChange={(e) => setCategory(e.target.value)}
